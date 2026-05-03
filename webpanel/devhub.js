@@ -961,47 +961,85 @@ input:checked + .ctx-slider:before{transform:translateX(18px);background:var(--g
 <div class="card" id="sec-github">
   <div class="card-header">
     <div class="card-title">🐙 إعداد GitHub</div>
-    <span class="badge ${hasToken ? "badge-green" : "badge-red"}">${hasToken ? "✅ موصول" : "❌ بحاجة توكن"}</span>
+    <span class="badge ${hasToken ? "badge-green" : "badge-red"}" id="ghBadge">${hasToken ? "✅ موصول" : "❌ بحاجة توكن"}</span>
   </div>
 
-  <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:12px;margin-bottom:14px;font-size:.82rem;color:var(--text2)">
-    🔑 أنشئ توكن GitHub من <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=WHITE-V3-Panel" target="_blank" style="color:#60a5fa">هنا</a> — الصلاحيات: <code style="color:#60a5fa">repo</code> + <code style="color:#60a5fa">delete_repo</code>
+  <!-- STEP 1: Token -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#6366f1);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;flex-shrink:0">1</div>
+      <div style="font-weight:700;font-size:.9rem">أدخل توكن GitHub</div>
+      <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=WHITE-V3-Panel" target="_blank" style="margin-right:auto;font-size:.75rem;color:#60a5fa;background:rgba(59,130,246,.1);padding:3px 8px;border-radius:6px;text-decoration:none">+ إنشاء توكن</a>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="position:relative;flex:1">
+        <input type="password" id="ghToken" class="form-control" value="${hasToken ? "••••••••••••••••" : ""}" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="padding-left:40px"/>
+        <button onclick="document.getElementById('ghToken').type=document.getElementById('ghToken').type==='password'?'text':'password'" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:.9rem;padding:0">👁️</button>
+      </div>
+      <button class="btn btn-primary" onclick="saveGhConfig()" style="flex-shrink:0;white-space:nowrap">💾 حفظ وتحقق</button>
+    </div>
+    <div style="font-size:.73rem;margin-top:6px;color:var(--text3)">
+      ${process.env.GITHUB_TOKEN ? `✅ محمّل من متغيرات البيئة`
+        : loadCfg().githubTokenEnc ? `⚠️ محفوظ — أعد الإدخال لتحديثه`
+        : `الصلاحيات المطلوبة: <code style="color:#60a5fa">repo</code> + <code style="color:#60a5fa">delete_repo</code>`}
+    </div>
+    <div id="ghVerifyStatus" style="margin-top:8px;font-size:.84rem;font-weight:600"></div>
   </div>
 
-  <div class="form-grid">
-    <div class="form-group">
-      <label class="form-label">🔑 GitHub Token (PAT)</label>
-      <input type="password" id="ghToken" class="form-control" value="${hasToken ? "••••••••••••••••" : ""}" placeholder="ghp_xxxxxxxxxxxx"/>
-      <div style="font-size:.73rem;margin-top:3px">
-        ${process.env.GITHUB_TOKEN ? `<span style="color:var(--green)">✅ محمّل من متغيرات البيئة</span>`
-          : loadCfg().githubTokenEnc ? `<span style="color:var(--yellow)">⚠️ محفوظ في الإعدادات</span>`
-          : `<span style="color:var(--red)">❌ لا يوجد توكن</span>`}
+  <!-- STEP 2: Choose Base Repo -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;flex-shrink:0">2</div>
+      <div style="font-weight:700;font-size:.9rem">اختر ريبو البوت الأساسي</div>
+      <button class="btn btn-outline btn-sm" onclick="listMyRepos()" style="margin-right:auto;font-size:.75rem">🔄 تحميل ريبوهاتي</button>
+    </div>
+    <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:10px;margin-bottom:10px;font-size:.82rem">
+      📌 الريبو الحالي: <strong style="color:#6ee7b7" id="currentBaseRepoDisplay">${loadCfg().baseRepo || "غير محدد"}</strong>
+      &nbsp;•&nbsp; المالك: <strong style="color:#6ee7b7" id="currentOwnerDisplay">${loadCfg().baseOwner || "غير محدد"}</strong>
+    </div>
+    <div id="repoPickerGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:280px;overflow-y:auto;margin-bottom:10px">
+      <div style="text-align:center;color:var(--text3);font-size:.83rem;padding:20px;grid-column:1/-1">
+        💡 اضغط "تحميل ريبوهاتي" لعرض ريبوهاتك واختيار الريبو الأساسي
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">👤 المالك (Owner)</label>
-      <input type="text" id="ghOwner" class="form-control" value="${loadCfg().baseOwner || "castrolmocro"}" placeholder="castrolmocro"/>
-    </div>
-    <div class="form-group">
-      <label class="form-label">📁 الريبو الهدف</label>
-      <input type="text" id="ghBaseRepo" class="form-control" value="${loadCfg().baseRepo || "New-white-e2ee-v2"}" placeholder="New-white-e2ee-v2"/>
-    </div>
-    <div class="form-group">
-      <label class="form-label">🚂 Railway Webhook</label>
-      <input type="text" id="railwayWebhook" class="form-control" value="${loadCfg().railwayWebhook || ""}" placeholder="https://backboard.railway.app/webhook/..."/>
-    </div>
-    <div class="form-group">
-      <label class="form-label">🔌 بورت البانل (الحالي: ${_savedPort})</label>
-      <input type="number" id="panelPort" class="form-control" value="${_savedPort}" min="1024" max="65535"/>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <label class="form-label" style="font-size:.77rem">أو أدخل يدوياً — المالك</label>
+        <input type="text" id="ghOwner" class="form-control" value="${loadCfg().baseOwner || ""}" placeholder="castrolmocro" style="font-size:.83rem"/>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label class="form-label" style="font-size:.77rem">اسم الريبو</label>
+        <input type="text" id="ghBaseRepo" class="form-control" value="${loadCfg().baseRepo || ""}" placeholder="WHITE-V3" style="font-size:.83rem"/>
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <button class="btn btn-success btn-sm" onclick="saveBaseRepo()">✅ تعيين كريبو أساسي</button>
+      </div>
     </div>
   </div>
-  <div class="btn-row">
-    <button class="btn btn-primary" onclick="saveGhConfig()">💾 حفظ</button>
-    <button class="btn btn-outline" onclick="testGhToken()">🔍 اختبار الاتصال</button>
-    <button class="btn btn-outline" onclick="listMyRepos()">📋 ريبوهاتي</button>
-    <button class="btn btn-outline" onclick="savePort()">🔌 حفظ البورت</button>
+
+  <!-- STEP 3: Other Settings -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;flex-shrink:0">3</div>
+      <div style="font-weight:700;font-size:.9rem">إعدادات إضافية</div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">🚂 Railway Webhook (اختياري)</label>
+        <input type="text" id="railwayWebhook" class="form-control" value="${loadCfg().railwayWebhook || ""}" placeholder="https://backboard.railway.app/webhook/..."/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔌 بورت البانل (الحالي: ${_savedPort})</label>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="panelPort" class="form-control" value="${_savedPort}" min="1024" max="65535"/>
+          <button class="btn btn-outline btn-sm" onclick="savePort()" style="flex-shrink:0">حفظ</button>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-outline btn-sm" onclick="saveRailwayWebhookVal()">💾 حفظ Railway Webhook</button>
+    </div>
   </div>
-  <div id="ghStatus" style="margin-top:10px"></div>
 </div>
 
 <!-- ── Push ALL ── -->
@@ -1674,20 +1712,57 @@ async function analyzeUploadedFile(filePath) {
 
 // ── GitHub Config ──────────────────────────────────────────────────────────────
 async function saveGhConfig() {
-  const token   = document.getElementById("ghToken").value;
+  const token   = document.getElementById("ghToken").value.trim();
+  const webhook = document.getElementById("railwayWebhook")?.value.trim() || "";
   const owner   = document.getElementById("ghOwner").value.trim();
   const repo    = document.getElementById("ghBaseRepo").value.trim();
-  const webhook = document.getElementById("railwayWebhook").value.trim();
   const payload = { owner, baseRepo: repo, railwayWebhook: webhook };
-  if (token !== "••••••••••••••••") payload.token = token;
+  if (token && token !== "••••••••••••••••") payload.token = token;
+  const vst = document.getElementById("ghVerifyStatus");
+  vst.innerHTML = '<span style="color:var(--text3)">⏳ جارٍ الحفظ والتحقق...</span>';
   const r = await api("/api/devhub/config/save", payload);
   if (r.ok) {
-    showToast("✅ تم حفظ الإعدادات", "success");
-    if (token !== "••••••••••••••••") document.getElementById("ghToken").value = "••••••••••••••••";
-    // Auto-verify token and load repos after save
-    await testGhToken();
-    await listMyRepos();
-  } else showToast("❌ " + r.error, "error");
+    if (token && token !== "••••••••••••••••") document.getElementById("ghToken").value = "••••••••••••••••";
+    // Step 1: verify token
+    const vr = await api("/api/devhub/github/test", {});
+    if (vr.ok) {
+      vst.innerHTML = \`<span style="color:var(--green)">✅ مرحباً <strong>\${vr.login}</strong> — التوكن صالح</span>\`;
+      document.getElementById("ghBadge").className = "badge badge-green";
+      document.getElementById("ghBadge").textContent = "✅ موصول";
+      showToast("✅ التوكن صالح — جارٍ تحميل الريبوهات", "success");
+      // Step 2: auto-load repos
+      await listMyRepos();
+    } else {
+      vst.innerHTML = \`<span style="color:var(--red)">❌ التوكن غير صالح: \${vr.error||"خطأ"}</span>\`;
+      showToast("❌ التوكن غير صالح", "error");
+    }
+  } else {
+    vst.innerHTML = \`<span style="color:var(--red)">❌ \${r.error||"فشل الحفظ"}</span>\`;
+    showToast("❌ " + (r.error||"فشل"), "error");
+  }
+}
+async function saveBaseRepo() {
+  const owner = document.getElementById("ghOwner").value.trim();
+  const repo  = document.getElementById("ghBaseRepo").value.trim();
+  if (!owner || !repo) return showToast("أدخل المالك والريبو","error");
+  const r = await api("/api/devhub/config/save", { owner, baseRepo: repo });
+  if (r.ok) {
+    document.getElementById("currentBaseRepoDisplay").textContent = repo;
+    document.getElementById("currentOwnerDisplay").textContent = owner;
+    // sync push fields
+    const pr = document.getElementById("pushAllRepo"); if(pr) pr.value = repo;
+    const po = document.getElementById("pushAllOwner"); if(po) po.value = owner;
+    showToast("✅ تم تعيين " + owner + "/" + repo + " كريبو أساسي", "success");
+    // highlight selected card
+    document.querySelectorAll(".repo-pick-card").forEach(c => {
+      c.style.borderColor = (c.dataset.repo === repo && c.dataset.owner === owner) ? "#10b981" : "var(--border)";
+    });
+  } else showToast("❌ " + (r.error||"فشل"), "error");
+}
+async function saveRailwayWebhookVal() {
+  const webhook = document.getElementById("railwayWebhook").value.trim();
+  const r = await api("/api/devhub/config/save", { railwayWebhook: webhook });
+  r.ok ? showToast("✅ تم حفظ Railway Webhook","success") : showToast("❌ فشل","error");
 }
 async function savePort() {
   const port = document.getElementById("panelPort").value;
@@ -1696,21 +1771,50 @@ async function savePort() {
   d.ok ? showToast(\`✅ البورت \${d.port} — أعد تشغيل البوت\`,"success") : showToast("❌ "+d.error,"error");
 }
 async function testGhToken() {
-  const st = document.getElementById("ghStatus");
-  st.innerHTML = '<span style="color:var(--text3)">⏳ جارٍ الاختبار...</span>';
-  const r = await api("/api/devhub/github/test",{});
-  if (r.ok) st.innerHTML = \`<span style="color:var(--green)">✅ مرحباً <strong>\${r.login}</strong></span>\`;
-  else st.innerHTML = \`<span style="color:var(--red)">❌ \${r.error}</span>\`;
+  const vst = document.getElementById("ghVerifyStatus");
+  if (vst) { vst.innerHTML = '<span style="color:var(--text3)">⏳ جارٍ الاختبار...</span>'; }
+  const r = await api("/api/devhub/github/test", {});
+  if (vst) {
+    if (r.ok) vst.innerHTML = \`<span style="color:var(--green)">✅ مرحباً <strong>\${r.login}</strong></span>\`;
+    else vst.innerHTML = \`<span style="color:var(--red)">❌ \${r.error}</span>\`;
+  }
+  return r;
 }
 async function listMyRepos() {
-  const st = document.getElementById("ghStatus");
-  st.innerHTML = '<span style="color:var(--text3)">⏳...</span>';
+  const grid = document.getElementById("repoPickerGrid");
+  if (!grid) return;
+  grid.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px;grid-column:1/-1">⏳ جارٍ تحميل الريبوهات...</div>';
   const r = await fetch("/api/devhub/github/repos");
   const data = await r.json();
-  if (data.repos) {
-    st.innerHTML = "<div style='margin-top:8px;display:flex;flex-wrap:wrap;gap:6px'>" +
-      data.repos.map(rp => \`<a href="\${rp.html_url}" target="_blank" class="badge badge-blue" style="text-decoration:none">\${rp.name}</a>\`).join("") + "</div>";
-  } else st.innerHTML = \`<span style="color:var(--red)">❌ \${data.error||"فشل"}</span>\`;
+  if (!data.repos || !data.repos.length) {
+    grid.innerHTML = \`<div style="text-align:center;color:var(--red);padding:16px;grid-column:1/-1">❌ \${data.error||"لا توجد ريبوهات أو التوكن غير صالح"}</div>\`;
+    return;
+  }
+  const curRepo  = document.getElementById("ghBaseRepo")?.value.trim() || "";
+  const curOwner = document.getElementById("ghOwner")?.value.trim() || "";
+  grid.innerHTML = data.repos.map(rp => {
+    const isCur = rp.name === curRepo && (rp.owner?.login||"") === curOwner;
+    return \`<div class="repo-pick-card" data-repo="\${rp.name}" data-owner="\${rp.owner?.login||""}"
+      onclick="selectRepo('\${rp.name}','\${rp.owner?.login||""}')"
+      style="background:var(--bg4);border:2px solid \${isCur?"#10b981":"var(--border)"};border-radius:10px;padding:12px;cursor:pointer;transition:all .2s;\${isCur?"box-shadow:0 0 0 2px rgba(16,185,129,.25)":""}">
+      <div style="font-weight:700;font-size:.85rem;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">\${rp.name}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:.7rem;padding:2px 7px;border-radius:8px;background:\${rp.private?"rgba(245,158,11,.15)":"rgba(16,185,129,.15)"};color:\${rp.private?"#fbbf24":"#6ee7b7"}">\${rp.private?"🔒 خاص":"🌐 عام"}</span>
+        \${isCur ? '<span style="font-size:.7rem;padding:2px 7px;border-radius:8px;background:rgba(16,185,129,.15);color:#6ee7b7">✅ الحالي</span>' : ""}
+      </div>
+      <div style="font-size:.72rem;color:var(--text3);margin-top:5px">\${rp.owner?.login||""}</div>
+    </div>\`;
+  }).join("");
+}
+function selectRepo(repoName, ownerName) {
+  document.getElementById("ghBaseRepo").value = repoName;
+  document.getElementById("ghOwner").value = ownerName;
+  document.querySelectorAll(".repo-pick-card").forEach(c => {
+    const active = c.dataset.repo === repoName && c.dataset.owner === ownerName;
+    c.style.borderColor = active ? "#10b981" : "var(--border)";
+    c.style.boxShadow   = active ? "0 0 0 2px rgba(16,185,129,.25)" : "none";
+  });
+  showToast("✔ اختيار: " + ownerName + "/" + repoName + " — اضغط تعيين كريبو أساسي", "success");
 }
 
 // ── Push All ───────────────────────────────────────────────────────────────────
@@ -2537,88 +2641,134 @@ document.addEventListener("keydown", function(e) {
 
   // ── Guide Page ──────────────────────────────────────────────────────────────
   app.get("/devhub/guide", auth, (req, res) => {
+    const cfg = loadCfg();
     const body = `
 <div class="page-header">
   <div class="page-title">📖 دليل مركز التطوير</div>
-  <div class="page-sub">كل شيء تحتاجه لتطوير بوتك بدون خبرة برمجية كبيرة</div>
+  <div class="page-sub">كل ما تحتاجه لتطوير بوتك — وكلاء ذكاء اصطناعي، GitHub، ملفات، نشر</div>
 </div>
 
-<div style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(139,92,246,.12));border:1px solid rgba(59,130,246,.35);border-radius:14px;padding:22px;margin-bottom:24px;text-align:center">
-  <div style="font-size:2rem;margin-bottom:6px">⚪ WHITE V3</div>
-  <div style="font-size:1.2rem;font-weight:800;background:linear-gradient(90deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">مركز التطوير — DevHub</div>
-  <div style="font-size:.85rem;color:var(--text2);margin-top:6px">تطوير: <strong style="color:#fbbf24">DJAMEL</strong> &nbsp;•&nbsp; © ${new Date().getFullYear()} WHITE Bot</div>
+<div style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(139,92,246,.12));border:1px solid rgba(59,130,246,.35);border-radius:14px;padding:20px;margin-bottom:22px;text-align:center">
+  <div style="font-size:1.8rem;margin-bottom:4px">⚪ WHITE V3</div>
+  <div style="font-size:1.1rem;font-weight:800;background:linear-gradient(90deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">مركز التطوير — DevHub</div>
+  <div style="font-size:.82rem;color:var(--text2);margin-top:6px">تطوير: <strong style="color:#fbbf24">DJAMEL</strong> &nbsp;•&nbsp; © ${new Date().getFullYear()} WHITE Bot</div>
 </div>
 
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px">
-
-  <div class="card" style="margin:0;border-color:rgba(59,130,246,.4)">
-    <div class="card-header"><div class="card-title" style="color:#60a5fa">🔓 الوصول التلقائي</div></div>
-    <div style="font-size:.84rem;color:var(--text2);line-height:1.8">
-      <p>عند تفعيل <strong>وصول كامل للبوت</strong>، يقرأ الذكاء الاصطناعي تلقائياً:</p>
-      <p>• إعدادات البوت (البريفيكس، اللغة، الأدمن)</p>
-      <p>• قائمة جميع الأوامر والأحداث</p>
-      <p>• هيكل المشروع</p>
-      <p style="color:var(--green);margin-top:6px">✅ لا تحتاج لاختيار ملفات يدوياً</p>
+<!-- ─── قسم 1: الوكلاء الذكية ─────────────────────────── -->
+<div class="card" style="margin-bottom:16px;border-color:rgba(59,130,246,.35)">
+  <div class="card-header"><div class="card-title" style="color:#60a5fa">🤖 الوكلاء الذكية — كيف تعمل؟</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px">
+    <div style="background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);border-radius:10px;padding:12px">
+      <div style="color:#60a5fa;font-weight:700;margin-bottom:6px;font-size:.88rem">🔍 المحلل</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">يقرأ طلبك ويحدد المشكلة والملفات المطلوبة. لا يكتب كوداً — فقط تحليل دقيق.</div>
+    </div>
+    <div style="background:rgba(196,181,253,.08);border:1px solid rgba(196,181,253,.2);border-radius:10px;padding:12px">
+      <div style="color:#c4b5fd;font-weight:700;margin-bottom:6px;font-size:.88rem">💻 المطور</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">يأخذ تحليل المحلل ويكتب الكود الكامل داخل بلوك <code>javascript</code> جاهز للتطبيق.</div>
+    </div>
+    <div style="background:rgba(110,231,183,.08);border:1px solid rgba(110,231,183,.2);border-radius:10px;padding:12px">
+      <div style="color:#6ee7b7;font-weight:700;margin-bottom:6px;font-size:.88rem">✅ المراجع</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">يراجع الكود ويعطي حكماً: ✅ يعمل أو ❌ يحتاج تعديل — في 3-5 أسطر فقط.</div>
+    </div>
+    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:12px">
+      <div style="color:#fbbf24;font-weight:700;margin-bottom:6px;font-size:.88rem">📚 المرشد</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">يشرح بلغة بسيطة دون مصطلحات تقنية — مثالي للمبتدئين.</div>
+    </div>
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:12px">
+      <div style="color:#f59e0b;font-weight:700;margin-bottom:6px;font-size:.88rem">🤖 Claude AI</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">شرح مفصل وكود متقدم مع تذكّر سياق المحادثة.</div>
+    </div>
+    <div style="background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:12px">
+      <div style="color:#a78bfa;font-weight:700;margin-bottom:6px;font-size:.88rem">💡 مستشار البوت</div>
+      <div style="font-size:.8rem;color:var(--text2);line-height:1.7">يقرأ ملفات البوت ويقترح الأفكار والتحسينات بالكلام — بدون كتابة كود.</div>
     </div>
   </div>
+  <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px;font-size:.82rem;color:var(--text2)">
+    💡 <strong>نصيحة:</strong> استخدم <kbd style="background:var(--bg4);padding:2px 6px;border-radius:4px;font-size:.78rem">Ctrl+Enter</kbd> للإرسال السريع. الوكلاء يستخدمون 5 نماذج AI تلقائياً (OpenAI، Mistral، LLaMA، OpenAI-Fast، DeepSeek) — إذا فشل أحدها ينتقل للتالي تلقائياً.
+  </div>
+</div>
 
-  <div class="card" style="margin:0;border-color:rgba(59,130,246,.4)">
-    <div class="card-header"><div class="card-title" style="color:#60a5fa">🤖 أنواع الدردشة</div></div>
-    <div style="font-size:.84rem;color:var(--text2);line-height:1.8">
-      <p>🚀 <strong>الوكلاء الثلاثة</strong>: تحليل + كود + مراجعة</p>
-      <p>🤖 <strong>Claude AI</strong>: شرح مفصل وكود متقدم</p>
-      <p>⚡ <strong>سريع</strong>: سؤال ورد فوري</p>
-      <p>📚 <strong>المرشد</strong>: للمبتدئين — شرح بسيط</p>
+<!-- ─── قسم 2: GitHub والتوكن ─────────────────────────── -->
+<div class="card" style="margin-bottom:16px;border-color:rgba(139,92,246,.35)">
+  <div class="card-header"><div class="card-title" style="color:#a78bfa">🐙 ربط GitHub — خطوة بخطوة</div></div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#6366f1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:.82rem;flex-shrink:0">1</div>
+      <div style="font-size:.83rem;color:var(--text2);line-height:1.8">
+        <strong style="color:var(--text)">أنشئ توكن GitHub (PAT)</strong><br>
+        انتقل لـ <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo&description=WHITE-V3-Panel" target="_blank" style="color:#60a5fa">GitHub → Settings → Developer settings → Tokens (classic)</a><br>
+        اضغط <strong>Generate new token</strong> — فعّل صلاحيات <code style="color:#60a5fa">repo</code> و<code style="color:#60a5fa">delete_repo</code> — انسخ التوكن (يبدأ بـ <code>ghp_</code>)
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:.82rem;flex-shrink:0">2</div>
+      <div style="font-size:.83rem;color:var(--text2);line-height:1.8">
+        <strong style="color:var(--text)">الصقه في إعداد GitHub</strong><br>
+        في قسم إعداد GitHub ↓ — الصق التوكن في حقل <strong>أدخل توكن GitHub</strong> ثم اضغط <strong>💾 حفظ وتحقق</strong><br>
+        سيتحقق تلقائياً ويعرض ريبوهاتك فوراً
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:.82rem;flex-shrink:0">3</div>
+      <div style="font-size:.83rem;color:var(--text2);line-height:1.8">
+        <strong style="color:var(--text)">اختر ريبو البوت الأساسي</strong><br>
+        بعد تحميل الريبوهات — انقر على الريبو الذي يحتوي بوتك (مثلاً <code>${cfg.baseRepo||"WHITE-V3"}</code>)<br>
+        سيتم تمييزه بالأخضر، ثم اضغط <strong>✅ تعيين كريبو أساسي</strong> — سيُستخدم في جميع عمليات الرفع
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:.82rem;flex-shrink:0">4</div>
+      <div style="font-size:.83rem;color:var(--text2);line-height:1.8">
+        <strong style="color:var(--text)">ارفع كودك</strong><br>
+        في قسم <strong>🚀 رفع كل الكود</strong> — اضغط <strong>🚀 رفع كل الكود</strong> لرفع جميع الملفات للريبو الأساسي<br>
+        أو <strong>🔒 رفع + خاص</strong> لجعل الريبو خاصاً بعد الرفع
+      </div>
     </div>
   </div>
+  <div style="margin-top:10px;padding:10px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:.8rem;color:#fbbf24">
+    ⚠️ <strong>مهم:</strong> لا تشارك توكن GitHub مع أحد. يمنح صلاحية كاملة على جميع ريبوهاتك.
+  </div>
+</div>
 
-  <div class="card" style="margin:0;border-color:rgba(16,185,129,.4)">
+<!-- ─── قسم 3: مدير الملفات ─────────────────────────── -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:16px">
+  <div class="card" style="margin:0;border-color:rgba(16,185,129,.35)">
     <div class="card-header"><div class="card-title" style="color:var(--green)">📂 مدير الملفات</div></div>
-    <div style="font-size:.84rem;color:var(--text2);line-height:1.8">
-      <p>• تصفح جميع ملفات البوت في شجرة</p>
-      <p>• انقر على ملف لفتحه وتعديله مباشرة</p>
-      <p>• زر "تحليل AI" لتحليل الملف بالذكاء</p>
-      <p>• "إرسال للوكلاء" لطلب تحسين الملف</p>
-      <p>• "💾 حفظ" يحفظ تعديلاتك مباشرة</p>
+    <div style="font-size:.82rem;color:var(--text2);line-height:1.9">
+      • تصفح شجرة الملفات بالكامل<br>
+      • انقر ملف لفتحه وتعديله مباشرة<br>
+      • <strong>تحليل AI</strong>: يُحلل الملف ويشرحه<br>
+      • <strong>إرسال للوكلاء</strong>: طلب تحسين الملف<br>
+      • <strong>💾 حفظ</strong>: يحفظ التعديلات فوراً
     </div>
   </div>
-
-  <div class="card" style="margin:0;border-color:rgba(16,185,129,.4)">
+  <div class="card" style="margin:0;border-color:rgba(16,185,129,.35)">
     <div class="card-header"><div class="card-title" style="color:var(--green)">📤 رفع الملفات</div></div>
-    <div style="font-size:.84rem;color:var(--text2);line-height:1.8">
-      <p>• اسحب وأفلت أي ملف مباشرة</p>
-      <p>• ملفات ZIP تُستخرج تلقائياً</p>
-      <p>• خيار "تحليل بالذكاء" يفحص الملف</p>
-      <p>• "إرسال ZIP للوكلاء" يحلل المحتوى</p>
-      <p style="color:var(--text3);font-size:.77rem;margin-top:4px">أقصى حجم: 20MB</p>
+    <div style="font-size:.82rem;color:var(--text2);line-height:1.9">
+      • اسحب وأفلت أي ملف للرفع<br>
+      • ملفات <code>.zip</code> تُستخرج تلقائياً<br>
+      • خيار <strong>تحليل بالذكاء</strong> يفحص الملف<br>
+      • <strong>إرسال ZIP للوكلاء</strong> يحلل المحتوى<br>
+      <span style="color:var(--text3);font-size:.75rem">أقصى حجم: 20MB</span>
     </div>
   </div>
-
-  <div class="card" style="margin:0;border-color:rgba(139,92,246,.4)">
-    <div class="card-header"><div class="card-title" style="color:var(--purple)">🐙 GitHub</div></div>
-    <div style="font-size:.84rem;color:var(--text2);line-height:1.8">
-      <p><strong>رفع كل الكود</strong>: بضغطة واحدة</p>
-      <p><strong>ملفات محددة</strong>: اختر وارفع</p>
-      <p><strong>النشر الذكي</strong>: ريبو جديد + Rollback</p>
-      <p style="color:var(--text3);font-size:.77rem;margin-top:4px">التوكن: من إعدادات GitHub</p>
+  <div class="card" style="margin:0;border-color:rgba(245,158,11,.35)">
+    <div class="card-header"><div class="card-title" style="color:var(--yellow)">⚡ نصائح مهمة</div></div>
+    <div style="font-size:.82rem;color:var(--text2);line-height:1.9">
+      • <kbd style="background:var(--bg4);padding:1px 5px;border-radius:3px">Ctrl+Enter</kbd> للإرسال السريع<br>
+      • الإجراءات السريعة توفّر وقتك<br>
+      • المحادثة تُحفظ تلقائياً<br>
+      • <strong>💾 تطبيق</strong> يحفظ كود الوكلاء مباشرة<br>
+      • للمبتدئين: تبويب <strong>المرشد</strong> الأوضح
     </div>
   </div>
-
-  <div class="card" style="margin:0;border-color:rgba(245,158,11,.4)">
-    <div class="card-header"><div class="card-title" style="color:var(--yellow)">⚡ نصائح سريعة</div></div>
-    <div style="font-size:.84rem;color:var(--text2);line-height:1.8">
-      <p>• <strong>Ctrl+Enter</strong> للإرسال السريع</p>
-      <p>• استخدم "الإجراءات السريعة" للمهام الشائعة</p>
-      <p>• المحادثة محفوظة تلقائياً</p>
-      <p>• "💾 تطبيق" يحفظ الكود من المحادثة</p>
-      <p>• للمبتدئين: تبويب "المرشد" أبسط وأوضح</p>
-    </div>
-  </div>
-
 </div>
 
-<div style="margin-top:8px;padding:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;text-align:center">
-  <div style="font-size:.8rem;color:var(--text3)">© ${new Date().getFullYear()} WHITE Bot by DJAMEL &nbsp;•&nbsp; <a href="https://github.com/castrolmocro/New-white-e2ee-v2" target="_blank" style="color:#60a5fa">GitHub</a></div>
+<div style="padding:14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;text-align:center">
+  <div style="font-size:.78rem;color:var(--text3)">
+    © ${new Date().getFullYear()} WHITE Bot by DJAMEL &nbsp;•&nbsp;
+    <a href="https://github.com/${cfg.baseOwner||"castrolmocro"}/${cfg.baseRepo||"WHITE-V3"}" target="_blank" style="color:#60a5fa">GitHub: ${cfg.baseOwner||"castrolmocro"}/${cfg.baseRepo||"WHITE-V3"}</a>
+  </div>
 </div>`;
     res.send(layout("دليل المطور", body, "devhub/guide"));
   });
