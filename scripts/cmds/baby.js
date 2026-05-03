@@ -2,12 +2,25 @@ const axios = require("axios");
 
 const simsim = "https://simsimi-api-tjb1.onrender.com";
 
-const typing = async (api, threadID, ms = 3000) => {
+// text: نص الرسالة المرتقبة (لحساب مدة الكتابة) أو رقم (ms) للتوافق القديم
+const typing = async (api, threadID, text = "") => {
   try {
-    if (typeof api.sendTypingIndicator === "function") {
-      await api.sendTypingIndicator(threadID, true);
-      await new Promise(resolve => setTimeout(resolve, ms));
-      await api.sendTypingIndicator(threadID, false);
+    const { calcHumanTypingDelay, simulateTyping } = global.utils || {};
+    if (typeof calcHumanTypingDelay === "function" && typeof simulateTyping === "function") {
+      // إذا مُرِّر رقم (توافق قديم) نستخدمه مباشرة كـ delay
+      const delayMs = typeof text === "number"
+        ? text
+        : calcHumanTypingDelay(String(text) || "...");
+      await simulateTyping(api, threadID, delayMs);
+    } else {
+      const ms = typeof text === "number" ? text : Math.min(Math.max((String(text).length || 15) * 60, 1200), 6000);
+      if (typeof api.sendTypingIndicator === "function") {
+        api.sendTypingIndicator(threadID, true);
+        await new Promise(r => setTimeout(r, ms));
+        api.sendTypingIndicator(threadID, false);
+      } else {
+        await new Promise(r => setTimeout(r, ms));
+      }
     }
   } catch {}
 };
