@@ -54,10 +54,30 @@
   },
   "stealth": {
     "enable": true,
-    "notes": "Human-camouflage system. Randomizes presence, browses Facebook pages, marks messages as read, and rotates user-agents to avoid bot detection.",
-    "sleepHourStart": 2,
-    "sleepHourEnd": 7,
-    "notesSleep": "Hours (0-23) when the bot simulates sleeping: reduces activity, goes offline, rarely browses."
+    "notes": "Human-camouflage system v2 — 10 layers. Randomizes presence, browses with real browser headers, marks messages as read, rotates user-agents, throttles outgoing messages, and enters burst-cooling when too active.",
+    "sleepHourStart": 1,
+    "sleepHourEnd": 8,
+    "notesSleep": "Hours (0-23) when bot simulates sleeping. Extended to 01:00-08:00 for stronger protection.",
+    "warmupMinutes": 15,
+    "notesWarmup": "After login, bot stays mostly offline for this many minutes to avoid looking suspicious.",
+    "outgoingThrottle": {
+      "enable": true,
+      "maxPerThread": 12,
+      "threadWindowMinutes": 5,
+      "maxGlobal": 40,
+      "globalWindowMinutes": 10,
+      "coolingMinSeconds": 15,
+      "coolingMaxSeconds": 80,
+      "notes": "Limits outgoing messages per thread and globally. Adds random delay when limits approached."
+    },
+    "burstCooling": {
+      "enable": true,
+      "triggerCount": 3,
+      "triggerWindowMinutes": 25,
+      "coolingMinMinutes": 2,
+      "coolingMaxMinutes": 6,
+      "notes": "If global rate limit is hit 3+ times in 25 min, bot enters a full cooling pause of 2-6 minutes."
+    }
   },
   "adminBot": [
     "61583835186508",
