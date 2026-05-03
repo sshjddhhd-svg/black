@@ -345,6 +345,50 @@ function jsonStringifyColor(obj, filter, indent, level) {
 }
 
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function _htRandInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// نوزيع شبه-طبيعي: مجموع 4 أرقام عشوائية يُعطي توزيع يشبه ناقوس الجرس
+function _htBellRand(min, max) {
+        const n = 4;
+        let s = 0;
+        for (let i = 0; i < n; i++) s += Math.random();
+        return Math.round(min + (s / n) * (max - min));
+}
+
+// عدد الجمل التقريبي في النص (علامات الوقف العربية + الإنجليزية)
+function _htCountSentences(text) {
+        const m = String(text).match(/[.!?؟!،,;:]{1,3}/g);
+        return m ? m.length : 0;
+}
+
+// إظهار مؤشر الكتابة ثم إخفاؤه (توافق مع API مختلفة)
+async function _htShowIndicator(api, threadID, durationMs) {
+        let stopFn = null;
+        try {
+                const r = api.sendTypingIndicator(threadID, true, {
+                        duration: durationMs + 800,
+                        autoStop: true,
+                });
+                if (typeof r === "function") stopFn = r;
+        } catch (_) {
+                try {
+                        const r = api.sendTypingIndicator(threadID);
+                        if (typeof r === "function") stopFn = r;
+                } catch (_) {}
+        }
+        return stopFn;
+}
+
+async function _htStopIndicator(api, threadID, stopFn) {
+        try { if (typeof stopFn === "function") stopFn(); } catch (_) {}
+        try { api.sendTypingIndicator(threadID, false); } catch (_) {}
+}
+
+// ─── Core: حساب مدة الكتابة فقط (بدون read/think pause) ─────────────────────
 function calcHumanTypingDelay(form) {
         const cfg = global.GoatBot?.config?.humanTyping;
         if (!cfg || !cfg.enable) return 0;
@@ -353,31 +397,119 @@ function calcHumanTypingDelay(form) {
         if (typeof form === "string") text = form;
         else if (form && typeof form.body === "string") text = form.body;
 
-        const minDelay   = cfg.minDelay       || 800;
-        const maxDelay   = cfg.maxDelay       || 4500;
-        const cps        = cfg.charsPerSecond || 14;
-        const jitterPct  = cfg.jitterPercent  || 25;
+        // سرعة كتابة إنسانية حقيقية: 3.0–5.5 حرف/ثانية (180–330 حرف/دقيقة)
+        const cpsMin = cfg.cpsMin || 3.0;
+        const cpsMax = cfg.cpsMax || 5.5;
+        const cps    = cpsMin + Math.random() * (cpsMax - cpsMin);
 
-        // حساب الوقت بناءً على عدد الأحرف
-        let delay = (text.length / cps) * 1000;
+        const minDelay = cfg.minDelay || 700;
+        const maxDelay = cfg.maxDelay || 9000;
+
+        // قياس غير خطي: الجمل الطويلة لها تسارع (الإنسان يكتب أسرع مع الإيقاع)
+        // log-scale: delay تنمو ببطء بعد 80 حرفاً
+        let charLen = text.length;
+        if (charLen > 80) {
+                charLen = 80 + Math.log(charLen - 79) * 28;
+        }
+        let delay = (charLen / cps) * 1000;
+
+        // فواصل الجمل: كل علامة وقف تُضيف توقفاً بشرياً
+        const sentences    = _htCountSentences(text);
+        const breakMs      = cfg.sentenceBreakMs || 350;
+        const breakJitter  = cfg.sentenceBreakJitterMs || 200;
+        delay += sentences * (breakMs + Math.random() * breakJitter);
+
+        // تثبيت ضمن الحدود
         delay = Math.max(minDelay, Math.min(delay, maxDelay));
 
-        // إضافة عشوائية طبيعية ±jitterPct%
-        const jitter = delay * (jitterPct / 100);
-        delay += (Math.random() * jitter * 2) - jitter;
+        // جيتر ناقوسي ±jitterPercent% (أكثر واقعية من الجيتر الموحّد)
+        const jitterPct = cfg.jitterPercent || 22;
+        const spread    = delay * (jitterPct / 100);
+        delay += _htBellRand(-spread, spread);
 
-        // رسالة بمرفق بدون نص → تأخير أدنى ثابت
-        if (!text && form && form.attachment) delay = minDelay + Math.random() * 800;
+        // مرفق بدون نص → تأخير ثابت قصير (وقت "اختيار الملف")
+        if (!text && form && form.attachment) {
+                delay = _htRandInt(cfg.attachMinMs || 1500, cfg.attachMaxMs || 4000);
+        }
 
         return Math.max(400, Math.round(delay));
 }
 
+// ─── Core: محاكاة الكتابة الكاملة (read → think → type → send) ──────────────
 async function simulateTyping(api, threadID, delayMs) {
         if (!delayMs) return;
-        try {
-                await api.sendTypingIndicator(threadID, true, { duration: delayMs + 600, autoStop: true });
-        } catch (_) {}
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+
+        const cfg = global.GoatBot?.config?.humanTyping || {};
+
+        // ── Phase 1: توقف القراءة (الإنسان يقرأ الرسالة قبل الرد) ──────────────
+        if (cfg.readPause !== false) {
+                const readMs = _htBellRand(
+                        cfg.readPauseMinMs || 500,
+                        cfg.readPauseMaxMs || 2200
+                );
+                await new Promise(r => setTimeout(r, readMs));
+        }
+
+        // ── Phase 2: توقف التفكير (قبل بداية الكتابة) ────────────────────────
+        if (cfg.thinkPause !== false) {
+                const thinkMs = _htBellRand(
+                        cfg.thinkPauseMinMs || 200,
+                        cfg.thinkPauseMaxMs || 1100
+                );
+                await new Promise(r => setTimeout(r, thinkMs));
+        }
+
+        // ── Phase 3: محاكاة خطأ كتابة (مؤشر يتوقف ثم يعود) ──────────────────
+        // الاحتمال: typoRate% — يُظهر "توقف قصير" داخل الكتابة
+        const typoRate = cfg.typoRate ?? 18; // 18% من الرسائل
+        const hasTypo  = Math.random() * 100 < typoRate && delayMs > 1500;
+
+        if (hasTypo) {
+                // اكتب لفترة، ثم توقف (كأنه حذف وأعاد الكتابة)
+                const firstChunk = _htRandInt(
+                        Math.floor(delayMs * 0.25),
+                        Math.floor(delayMs * 0.55)
+                );
+                const stopFn1 = await _htShowIndicator(api, threadID, firstChunk);
+                await new Promise(r => setTimeout(r, firstChunk));
+                await _htStopIndicator(api, threadID, stopFn1);
+
+                // توقف قصير (وقت "الحذف")
+                await new Promise(r => setTimeout(r, _htRandInt(300, 900)));
+
+                // اعادة الكتابة
+                const remaining = delayMs - firstChunk;
+                const stopFn2 = await _htShowIndicator(api, threadID, remaining);
+                await new Promise(r => setTimeout(r, remaining));
+                await _htStopIndicator(api, threadID, stopFn2);
+
+        } else if (cfg.distractionRate && delayMs > 3000 && Math.random() * 100 < (cfg.distractionRate ?? 8)) {
+                // ── Phase 4: تشتت (إنسان ابتعد عن الكيبورد لحظة) ────────────────
+                const firstChunk = _htRandInt(
+                        Math.floor(delayMs * 0.4),
+                        Math.floor(delayMs * 0.7)
+                );
+                const stopFn1 = await _htShowIndicator(api, threadID, firstChunk);
+                await new Promise(r => setTimeout(r, firstChunk));
+                await _htStopIndicator(api, threadID, stopFn1);
+
+                // توقف التشتت (3-8 ثواني)
+                await new Promise(r => setTimeout(r, _htRandInt(3000, 8000)));
+
+                const remaining = delayMs - firstChunk;
+                const stopFn2   = await _htShowIndicator(api, threadID, remaining);
+                await new Promise(r => setTimeout(r, remaining));
+                await _htStopIndicator(api, threadID, stopFn2);
+
+        } else {
+                // ── Phase 3 (عادي): مؤشر كتابة مستمر ────────────────────────────
+                const stopFn = await _htShowIndicator(api, threadID, delayMs);
+                await new Promise(r => setTimeout(r, delayMs));
+                await _htStopIndicator(api, threadID, stopFn);
+        }
+
+        // ── Phase 5: جيتر نهائي صغير (لا يوجد إنسان يضغط "إرسال" فوراً) ──────
+        await new Promise(r => setTimeout(r, _htRandInt(0, cfg.finalJitterMs || 350)));
 }
 
 function message(api, event) {
@@ -1107,7 +1239,11 @@ const utils = {
         uploadImgbb,
         drive,
 
-        GoatBotApis
+        GoatBotApis,
+
+        // Human Typing Simulation (نظام محاكاة الكتابة البشرية)
+        calcHumanTypingDelay,
+        simulateTyping
 };
 
 module.exports = utils;
