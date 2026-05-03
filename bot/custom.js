@@ -31,12 +31,29 @@ module.exports = async function ({ api, threadModel, userModel, dashBoardModel, 
                         const stealth = require("./stealth/index.js");
                         stealth.stop();
                         stealth.start(api);
-                        log.info("STEALTH", "🕵️ Human-camouflage system active.");
+                        log.info("STEALTH", "🕵️ Human-camouflage system v2 active (10 layers).");
                 } else {
                         log.info("STEALTH", "Stealth engine disabled in config.");
                 }
         } catch (e) {
                 log.warn("STEALTH", "Failed to start stealth engine: " + e.message);
+        }
+
+        // ─── Layer 7: Outgoing Throttle ───────────────────────────────────────
+        // يُغلّف api.sendMessage لتطبيق حدود الإرسال الإنسانية تلقائياً.
+        // يجب تفعيله قبل installApiHooks (الـ rotator) ليكون الطبقة الداخلية.
+        try {
+                const stealthCfg = global.GoatBot?.config?.stealth;
+                const throttleCfg = stealthCfg?.outgoingThrottle;
+                if (stealthCfg?.enable !== false && throttleCfg?.enable !== false) {
+                        const { wrapSendMessage } = require("./stealth/outgoingThrottle.js");
+                        wrapSendMessage(api);
+                        log.info("STEALTH", "⚡ Layer 7 — Outgoing throttle + burst-cooling active.");
+                } else {
+                        log.info("STEALTH", "Outgoing throttle disabled in config.");
+                }
+        } catch (e) {
+                log.warn("STEALTH", "Failed to start outgoing throttle: " + e.message);
         }
 
         // ─── DM Lock ──────────────────────────────────────────────────────────
