@@ -33,20 +33,16 @@ if (!global.GoatBot.divelWatchers) {
  * @param {string} msg
  */
 async function humanTypeSend(api, threadID, msg) {
-  // ~55 ms per character, clamped between 1.5 s and 8 s, ±20% jitter
-  const baseMs   = Math.min(Math.max(msg.length * 55, 1500), 8000);
-  const jitter   = baseMs * (0.8 + Math.random() * 0.4); // 80%–120% of base
-  const duration = Math.round(jitter);
-
-  let stopTyping = null;
+  // يستخدم النظام المركزي في utils.js (محاكاة بشرية كاملة)
   try {
-    stopTyping = api.sendTypingIndicator(threadID);
+    const { calcHumanTypingDelay, simulateTyping } = global.utils;
+    if (typeof calcHumanTypingDelay === "function" && typeof simulateTyping === "function") {
+      await simulateTyping(api, threadID, calcHumanTypingDelay(msg));
+    } else {
+      const ms = Math.min(Math.max(msg.length * 60, 1200), 8000);
+      await new Promise(r => setTimeout(r, ms));
+    }
   } catch (_) {}
-
-  await new Promise(r => setTimeout(r, duration));
-
-  try { if (typeof stopTyping === "function") stopTyping(); } catch (_) {}
-
   await api.sendMessage({ body: msg, isDaydreamMode: true }, threadID);
 }
 
