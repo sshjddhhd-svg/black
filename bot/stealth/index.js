@@ -1,34 +1,20 @@
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *  STEALTH ENGINE — Human Camouflage System
+ *  STEALTH ENGINE — Human Camouflage System  v2
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
  * Makes the bot indistinguishable from a real human user by:
  *
  *  Layer 1 — Presence Cycling
- *    Randomly alternates between online / idle / offline states
- *    so the account is never "always online" (bot signature).
- *
- *  Layer 2 — Human Page Browsing
- *    Periodically visits realistic Facebook pages (feed, notifications,
- *    profile, messages) using session cookies — exactly like a person
- *    switching between tabs.
- *
+ *  Layer 2 — Human Page Browsing (GET + HEAD with real browser headers)
  *  Layer 3 — Message Read Simulation
- *    Marks random active threads as "read" at irregular intervals,
- *    simulating a user glancing at their phone.
- *
- *  Layer 4 — Sleep Mode
- *    Dramatically reduces all activity during configurable sleeping hours.
- *    The account goes mostly offline and browses very rarely.
- *
- *  Layer 5 — User-Agent Rotation
- *    Rotates through a pool of real device user-agents for HTTP
- *    requests so fingerprinting across sessions is harder.
- *
+ *  Layer 4 — Sleep Mode (aggressive 01:00–08:00)
+ *  Layer 5 — User-Agent Rotation (expanded pool + brand headers)
  *  Layer 6 — Action Jitter
- *    Exports a helper so other modules (angel, divel, etc.) can add
- *    human-like random delays to any timed action.
+ *  Layer 7 — Outgoing Message Throttle  (outgoingThrottle.js)
+ *  Layer 8 — HTTP Request Fingerprinting (Sec-Fetch-*, Accept-Encoding…)
+ *  Layer 9 — Warmup Mode (first 15 min: minimal activity)
+ * Layer 10 — Typing Indicator before every reply
  */
 
 "use strict";
@@ -94,17 +80,24 @@ function cookieStr(api) {
 // ─── User-Agent Pool (realistic Android/iOS devices) ─────────────────────────
 
 const UA_POOL = [
-  // Android Chrome
+  // Android Chrome — various versions and devices
   "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Linux; Android 14; Pixel 7a) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
   "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
   "Mozilla/5.0 (Linux; Android 13; Redmi Note 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Linux; Android 13; 22041216G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36",
   "Mozilla/5.0 (Linux; Android 12; M2102J20SG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36",
   "Mozilla/5.0 (Linux; Android 14; OnePlus 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Linux; Android 13; CPH2451) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
   // iOS Safari
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-  // Facebook in-app WebView
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6.1 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+  // Facebook in-app WebView (Android)
   "Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/459.0.0.29.109;]",
+  "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.90 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/461.0.0.34.108;]",
 ];
 
 let _currentUAIdx = randInt(0, UA_POOL.length - 1);
@@ -118,23 +111,88 @@ function rotateUA() {
   log("info", `🔄 User-Agent rotated → ${UA_POOL[_currentUAIdx].slice(0, 60)}…`);
 }
 
+// ─── Layer 8: HTTP Request Fingerprinting ────────────────────────────────────
+/**
+ * Builds realistic browser headers matching the given UA.
+ * Real Chrome/Firefox/Safari send all these headers — missing them
+ * is a strong bot signal to Cloudflare and Facebook's detector.
+ */
+function buildBrowserHeaders(cookies, ua, referer = null) {
+  const isChrome  = ua.includes("Chrome") && !ua.includes("FB_IAB");
+  const isSafari  = ua.includes("Safari") && !ua.includes("Chrome");
+  const isFbApp   = ua.includes("FB_IAB");
+  const isMobile  = ua.includes("Mobile") || ua.includes("Android") || ua.includes("iPhone");
+
+  const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || "124";
+
+  const h = {
+    "cookie":                    cookies,
+    "user-agent":                ua,
+    "accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "accept-language":           "ar-DZ,ar;q=0.9,en-US;q=0.8,en;q=0.7",
+    "accept-encoding":           "gzip, deflate, br",
+    "cache-control":             Math.random() < 0.5 ? "max-age=0" : "no-cache",
+    "upgrade-insecure-requests": "1",
+    "connection":                "keep-alive",
+  };
+
+  if (referer) {
+    h["referer"]       = referer;
+    h["sec-fetch-site"] = "same-origin";
+  } else {
+    h["sec-fetch-site"] = Math.random() < 0.7 ? "none" : "same-origin";
+  }
+
+  if (isChrome || isFbApp) {
+    h["sec-fetch-mode"] = "navigate";
+    h["sec-fetch-dest"] = "document";
+    h["sec-fetch-user"] = "?1";
+    h["sec-ch-ua"]         = `"Chromium";v="${chromeVer}", "Not:A-Brand";v="99", "Google Chrome";v="${chromeVer}"`;
+    h["sec-ch-ua-mobile"]  = isMobile ? "?1" : "?0";
+    h["sec-ch-ua-platform"] = isMobile ? '"Android"' : '"Windows"';
+  } else if (isSafari) {
+    // Safari doesn't send Sec-Fetch-* for some requests
+    if (Math.random() < 0.6) {
+      h["sec-fetch-mode"] = "navigate";
+      h["sec-fetch-dest"] = "document";
+    }
+  }
+
+  // DNT: 1 — common on privacy-conscious users (adds realism)
+  if (Math.random() < 0.4) h["dnt"] = "1";
+
+  return h;
+}
+
+// ─── Layer 9: Warmup Mode ─────────────────────────────────────────────────────
+let _startTime = Date.now();
+
+function isWarmup() {
+  const warmupMin = global.GoatBot?.config?.stealth?.warmupMinutes ?? 15;
+  return (Date.now() - _startTime) < warmupMin * 60_000;
+}
+
 // ─── Facebook pages to "browse" ───────────────────────────────────────────────
 
 const PAGE_POOL = [
-  // Mobile Facebook
-  { url: "https://m.facebook.com/",                       label: "Home feed" },
-  { url: "https://m.facebook.com/?sk=h_nor",              label: "News feed" },
-  { url: "https://m.facebook.com/notifications",          label: "Notifications" },
-  { url: "https://m.facebook.com/messages",               label: "Messages list" },
-  { url: "https://m.facebook.com/profile.php",            label: "Own profile" },
-  { url: "https://m.facebook.com/friend_requests",        label: "Friend requests" },
-  { url: "https://m.facebook.com/events/upcoming",        label: "Upcoming events" },
-  { url: "https://m.facebook.com/groups/feed",            label: "Groups feed" },
-  // mbasic (lighter — used often on slow connections)
-  { url: "https://mbasic.facebook.com/",                  label: "mbasic home" },
-  { url: "https://mbasic.facebook.com/me",                label: "mbasic profile" },
-  { url: "https://mbasic.facebook.com/notifications",     label: "mbasic notifications" },
-  { url: "https://mbasic.facebook.com/groups/?seemore=1", label: "mbasic groups" },
+  // Mobile Facebook (m.facebook.com)
+  { url: "https://m.facebook.com/",                          label: "Home feed",         method: "GET" },
+  { url: "https://m.facebook.com/?sk=h_nor",                 label: "News feed",         method: "HEAD" },
+  { url: "https://m.facebook.com/notifications",             label: "Notifications",     method: "GET" },
+  { url: "https://m.facebook.com/messages",                  label: "Messages list",     method: "HEAD" },
+  { url: "https://m.facebook.com/profile.php",               label: "Own profile",       method: "GET" },
+  { url: "https://m.facebook.com/friend_requests",           label: "Friend requests",   method: "HEAD" },
+  { url: "https://m.facebook.com/events/upcoming",           label: "Upcoming events",   method: "HEAD" },
+  { url: "https://m.facebook.com/groups/feed",               label: "Groups feed",       method: "HEAD" },
+  { url: "https://m.facebook.com/marketplace",               label: "Marketplace",       method: "HEAD" },
+  { url: "https://m.facebook.com/stories/feeds/",            label: "Stories feed",      method: "HEAD" },
+  { url: "https://m.facebook.com/video_channel_browse",      label: "Reels browse",      method: "HEAD" },
+  // mbasic (lighter — used on slow connections)
+  { url: "https://mbasic.facebook.com/",                     label: "mbasic home",       method: "GET" },
+  { url: "https://mbasic.facebook.com/me",                   label: "mbasic profile",    method: "HEAD" },
+  { url: "https://mbasic.facebook.com/notifications",        label: "mbasic notifs",     method: "HEAD" },
+  { url: "https://mbasic.facebook.com/groups/?seemore=1",    label: "mbasic groups",     method: "HEAD" },
+  { url: "https://mbasic.facebook.com/messages/?folder=pending", label: "mbasic pending", method: "HEAD" },
 ];
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -174,29 +232,38 @@ async function presenceLoop() {
   const api = _api;
 
   try {
+    // Sleep hours → offline (more aggressive: 01:00–08:00)
     if (isSleepHour()) {
-      // Sleep hours → go offline
       try { api.setOptions({ online: false }); } catch (_) {}
       log("info", "🌙 Sleep mode — presence: offline");
-      schedulePresence(randMs(20, 40));
+      schedulePresence(randMs(25, 55));
       return;
     }
 
-    // Daytime distribution: 60% online, 25% idle, 15% briefly offline
+    // Warmup: stay mostly offline for first N minutes after login
+    if (isWarmup()) {
+      try { api.setOptions({ online: false }); } catch (_) {}
+      log("info", "🌱 Warmup — presence: offline");
+      schedulePresence(randMs(3, 8));
+      return;
+    }
+
+    // Normal hours: 50% online, 30% idle, 20% briefly offline
+    // (reduced online% from 60% — real people aren't ALWAYS online)
     const roll = Math.random();
-    if (roll < 0.60) {
+    if (roll < 0.50) {
       try { api.setOptions({ online: true }); } catch (_) {}
       log("info", "🟢 Presence → online");
-      schedulePresence(randMs(8, 22));
-    } else if (roll < 0.85) {
+      schedulePresence(randMs(6, 18));
+    } else if (roll < 0.80) {
       try { api.setOptions({ online: false }); } catch (_) {}
       log("info", "💤 Presence → idle");
-      schedulePresence(randMs(4, 12));
+      schedulePresence(randMs(5, 15));
     } else {
-      // Short offline break (simulates locking the phone)
+      // Offline break (simulates locking the phone, 10–25 min)
       try { api.setOptions({ online: false }); } catch (_) {}
-      log("info", "📴 Presence → offline (short break)");
-      schedulePresence(randMs(2, 7));
+      log("info", "📴 Presence → offline (break)");
+      schedulePresence(randMs(10, 25));
     }
   } catch (_) {
     schedulePresence(randMs(10, 20));
@@ -220,51 +287,48 @@ async function browseLoop() {
     const cookies = cookieStr(api);
     if (!cookies) { scheduleBrowse(randMs(25, 50)); return; }
 
-    // During sleep hours skip browsing almost entirely
-    if (isSleepHour()) {
-      scheduleBrowse(randMs(40, 80));
-      return;
-    }
+    // Skip browsing during sleep or warmup
+    if (isSleepHour())  { scheduleBrowse(randMs(40, 90)); return; }
+    if (isWarmup())     { scheduleBrowse(randMs(20, 40)); return; }
+
+    // Occasionally rotate UA before a visit (simulates app restart)
+    if (Math.random() < 0.10) rotateUA();
 
     const page = PAGE_POOL[randInt(0, PAGE_POOL.length - 1)];
     const ua   = getUA();
 
-    // Occasionally rotate UA before a visit (simulates app restart)
-    if (Math.random() < 0.12) rotateUA();
+    // Layer 8: Use real browser headers for all requests
+    const headers1 = buildBrowserHeaders(cookies, ua, null);
 
-    // Use HEAD request (no body downloaded) to mark session activity
-    // with a tiny fraction of the bandwidth of a full GET
-    await axios.head(page.url, {
-      headers: {
-        "cookie":          cookies,
-        "user-agent":      ua,
-        "accept":          "text/html,application/xhtml+xml,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.9,ar;q=0.8",
-        "referer":         "https://m.facebook.com/",
-        "upgrade-insecure-requests": "1",
-      },
-      timeout:        8000,
+    // 40% of visits use GET (download content like a real browser), 60% HEAD
+    const useGet = Math.random() < 0.40 || page.method === "GET";
+    const method = useGet ? "get" : "head";
+
+    await axios[method](page.url, {
+      headers:        headers1,
+      timeout:        12000,
       validateStatus: null,
-      maxRedirects:   2,
+      maxRedirects:   3,
+      maxContentLength: useGet ? 65536 : undefined, // cap GET at 64KB
     });
 
-    log("info", `🌐 Browsed (HEAD): ${page.label}`);
+    log("info", `🌐 Browsed (${method.toUpperCase()}): ${page.label}`);
 
-    // Rarely do a second lightweight follow-up (15% chance instead of 35%)
-    if (Math.random() < 0.15) {
-      await sleep(randInt(5000, 18000));
-      const page2 = PAGE_POOL[randInt(0, PAGE_POOL.length - 1)];
+    // 20% chance: do a follow-up page visit with referer (realistic navigation chain)
+    if (Math.random() < 0.20) {
+      await sleep(randInt(6000, 22000));
+      const page2   = PAGE_POOL[randInt(0, PAGE_POOL.length - 1)];
+      const headers2 = buildBrowserHeaders(cookies, ua, page.url);
       await axios.head(page2.url, {
-        headers: { "cookie": cookies, "user-agent": ua, "referer": page.url },
-        timeout: 6000, validateStatus: null, maxRedirects: 2,
+        headers: headers2, timeout: 8000, validateStatus: null, maxRedirects: 2,
       });
-      log("info", `🌐 Browsed follow-up (HEAD): ${page2.label}`);
+      log("info", `🌐 Follow-up (HEAD): ${page2.label}`);
     }
 
   } catch (_) {}
 
-  // Longer gaps: 12-30 min awake, 45-90 min sleep
-  const next = isSleepHour() ? randMs(45, 90) : randMs(12, 30);
+  // Awake: 15–35 min between visits | Sleep: 50–100 min
+  const next = isSleepHour() ? randMs(50, 100) : randMs(15, 35);
   scheduleBrowse(next);
 }
 
@@ -370,17 +434,19 @@ module.exports.start = function startStealth(api) {
     return;
   }
 
-  running = true;
-  _api    = api;
+  running    = true;
+  _api       = api;
+  _startTime = Date.now(); // reset warmup clock
 
-  log("info", "🕵️ Stealth engine started — all 6 layers active");
-  log("info", `🌙 Sleep hours: ${cfg.sleepHourStart ?? 2}:00 – ${cfg.sleepHourEnd ?? 7}:00`);
+  const warmupMin = cfg.warmupMinutes ?? 15;
+  log("info", `🕵️ Stealth engine v2 started — 10 layers active`);
+  log("info", `🌙 Sleep: ${cfg.sleepHourStart ?? 1}:00–${cfg.sleepHourEnd ?? 8}:00 | 🌱 Warmup: ${warmupMin} min`);
 
-  // Stagger startup so all loops don't fire at once
-  addTimer("presence-init",    presenceLoop,    randMs(0, 3));
-  addTimer("browse-init",      browseLoop,      randMs(12, 22));  // first browse after 12-22 min
-  addTimer("read-init",        readLoop,        randMs(15, 30));
-  addTimer("ua-rotation-init", uaRotationLoop,  randMs(60, 120));
+  // Stagger startup to avoid all loops firing at once
+  addTimer("presence-init",    presenceLoop,    randMs(0, 2));
+  addTimer("browse-init",      browseLoop,      randMs(20, 35));  // first browse after warmup
+  addTimer("read-init",        readLoop,        randMs(18, 35));
+  addTimer("ua-rotation-init", uaRotationLoop,  randMs(70, 130));
 };
 
 /**
@@ -420,9 +486,14 @@ module.exports.getStatus = function () {
     uaPoolSize:     UA_POOL.length,
     pagePoolSize:   PAGE_POOL.length,
     isSleepHour:    isSleepHour(),
+    isWarmup:       isWarmup(),
     localHour:      localHour(),
-    sleepStart:     cfg.sleepHourStart ?? 2,
-    sleepEnd:       cfg.sleepHourEnd   ?? 7,
+    sleepStart:     cfg.sleepHourStart ?? 1,
+    sleepEnd:       cfg.sleepHourEnd   ?? 8,
+    warmupMinutes:  cfg.warmupMinutes  ?? 15,
     activeTimers:   _loops.length,
   };
 };
+
+module.exports.isWarmup        = isWarmup;
+module.exports.buildBrowserHeaders = buildBrowserHeaders;
