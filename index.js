@@ -89,20 +89,3 @@ function startProject() {
 }
 
 startProject();
-
-// ─── Uptime server ────────────────────────────────────────────────────────────
-const express = require("express");
-const app     = express();
-
-app.get("/", (req, res) => {
-        res.json({
-                status: "running",
-                pid: process.pid,
-                restartCount,
-                uptime: process.uptime()
-        });
-});
-
-app.listen(3000, () => {
-        log.info("WATCHDOG", "Uptime server listening on port 3000");
-});
