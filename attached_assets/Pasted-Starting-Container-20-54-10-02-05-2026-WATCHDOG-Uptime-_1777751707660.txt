@@ -1,0 +1,116 @@
+Starting Container
+20:54:10 02/05/2026  ✅    WATCHDOG   Uptime server listening on port 3000
+]2;WHITE V3 🌐 Ultra Edition\─
+WHITE V3
+WHITE V3@1.5.35- Powered by DJAMEL
+Created by DJAMEL with ♡
+Source code: https://github.com/castrolmocro/New-white-e2ee-v2
+ALL VERSIONS NOT RELEASED HERE ARE FAKE
+ START LOGGING IN 
+20:54:14 02/05/2026  ✅    LOGIN FACEBOOK   Login in progress
+20:54:14 02/05/2026  ⚠️     FCA   Modified By DJAMEL 😈
+20:54:14 02/05/2026  ⚠️     APPSTATE   Appstate Verified Successfully.
+
+[ FCA-WARN ] > setOptions Unrecognized option given to setOptions: logLevel
+
+[ FCA-WARN ] > setOptions Unrecognized option given to setOptions: autoMarkDelivery
+
+[ FCA-WARN ] > setOptions Unrecognized option given to setOptions: notes
+
+[ FCA-UNO ] > ✅ No checkpoint detected — session is clean.
+
+[ FCA-UNO ] > Server region NHA
+
+[ FCA-UNO ] > ✅ Logged in as: Colombo Iı (61589268085924)
+
+[ FCA-UNO ] > Created new appstate backup for user 61589268085924
+
+[ FCA-UNO ] > Created new cookie backup for user 61589268085924
+
+[ FCA-UNO ] > Backup stored (overwrite mode)
+
+[ FCA-UNO ] > ⚡ fca-eryxenx | Powered by EryXenX | github.com/EryXenX
+
+[ FCA-UNO ] > Loaded 60 FCA API methods
+
+[ FCA-UNO ] > 🚀 Login successful! Bot is ready.
+20:54:19 02/05/2026  ✅    LOGIN FACEBOOK   Successful login
+ BOT INFO 
+20:54:19 02/05/2026  ✅    NODE VERSION   v18.20.8
+20:54:19 02/05/2026  ✅    PROJECT VERSION   1.5.35
+20:54:19 02/05/2026  ✅    BOT ID   61589268085924 - null
+20:54:19 02/05/2026  ✅    PREFIX   /
+20:54:19 02/05/2026  ✅    LANGUAGE   en
+20:54:19 02/05/2026  ✅    BOT NICK NAME   —͞ WHITE
+██████╗      ██╗ █████╗ ███╗   ███╗███████╗██╗     
+██╔══██╗     ██║██╔══██╗████╗ ████║██╔════╝██║     
+██║  ██║     ██║███████║██╔████╔██║█████╗  ██║     
+██║  ██║██   ██║██╔══██║██║╚██╔╝██║██╔══╝  ██║     
+██████╔╝╚█████╔╝██║  ██║██║ ╚═╝ ██║███████╗███████╗
+╚═════╝  ╚════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝
+┌──────────────────────────────────────────────────┐
+│  🚀  WHITE V3 DATABASE                            │
+└──────────────────────────────────────────────────┘
+  📦  Loading system resources…
+──────────────────────────────────────────────────
+- Connecting a SQLITE database
+20:54:19 02/05/2026  ✅    SQLITE   Successfully connected SQLITE database!
+  🧵  Thread data  ── ✅ OK
+  👤  User data    ── ✅ OK
+──────────────────────────────────────────────────
+┌──────────────────────────────────────────────────┐
+│  💻  SYSTEM READY                                 │
+└──────────────────────────────────────────────────┘
+20:54:19 02/05/2026  ✅    ACCOUNT_ROTATOR   Auto-rotation is disabled. Enable it in config or with /accounts enable.
+20:54:19 02/05/2026  ✅    STEALTH   🛑 Stealth engine stopped.
+20:54:19 02/05/2026  ✅    STEALTH   🕵️ Stealth engine started — all 6 layers active
+20:54:19 02/05/2026  ✅    STEALTH   🌙 Sleep hours: 2:00 – 7:00
+20:54:19 02/05/2026  ✅    STEALTH   🕵️ Human-camouflage system active.
+[E2EE] No PIN provided — E2EE module will run in passive mode (decrypt only).
+20:54:19 02/05/2026  ⚠️     E2EE   ⚠️  No E2EE PIN set. Running in passive mode.
+20:54:19 02/05/2026  ✅    DM_POLLER   ✅ Auto-accept PENDING DMs enabled — polling every 1 min
+20:54:19 02/05/2026  ✅    E2EE   🔐 E2EE API wrapper active — outgoing encryption enabled.
+[+] Loading commands...
+[+] Loading events...
+[✓] All modules loaded successfully.
+> System ready...
+Emoji font not found, using default
+20:54:20 02/05/2026  ❌    LOADED   Error loading some commands
+ ✖ mangaUtils.js: Cannot read properties of undefined (reading 'name')
+20:54:20 02/05/2026  ❌    LOADED   Error loading some event commands
+ ✖ e2eeAutoHandler.js: category of event command undefined
+ DASHBOARD 
+20:54:20 02/05/2026  ✅    PANEL   🌐 Admin Panel running on port 8080
+20:54:20 02/05/2026  ❌    DASHBOARD   An error occurred when opening the bot management page
+               Error: Can't find text: "Goat.googleApiRefreshTokenExpired"
+    at module.exports (/dashboard/app.js:60:9)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /bot/login/login.js:734:11
+─
+20:54:20 02/05/2026  📌    ADMINBOT   [1] 61583835186508 | null
+20:54:20 02/05/2026  📌    ADMINBOT   [2] 61583739652803 | null
+20:54:20 02/05/2026  📌    ADMINBOT   [3] 61568065558392 | null
+20:54:20 02/05/2026  📌    ADMINBOT   [4] 61552218617922 | null
+20:54:20 02/05/2026  📌    NOTIFICATION   
+20:54:20 02/05/2026  📌    SUCCESS   Launch bot successfully, start receiving messages from users
+20:54:20 02/05/2026  📌    LOAD TIME   9s
+ COPYRIGHT 
+  ©  WHITE V3 created by DJAMEL (https://github.com/castrolmocro) — do not sell or claim as your own.
+─
+
+[ FCA-UNO ] > mqtt auto-cycle enabled 3600000ms
+
+[ FCA-UNO ] > mqtt getSeqID call
+20:54:20 02/05/2026  ✅    LISTEN_MQTT   ListenMQTT restart enabled every 5m
+20:54:20 02/05/2026  ✅    BOT_STARTED   Bot has been started successfully, start receiving messages from users
+─
+20:54:20 02/05/2026  ✅    KEEP_ALIVE   🚀 Keep-alive started | Ping every 8–18 min | Cookies saved every 2h
+20:54:20 02/05/2026  ✅    KEEP_ALIVE   🔔 Next ping in 17 min
+20:54:20 02/05/2026  ✅    MQTT_HEALTH   Started — check every 2–5 min (randomized), restart if silent for 10 min
+20:54:20 02/05/2026  ✅    MQTT_HEALTH   Next check in 3.8 min
+
+[ FCA-UNO ] > mqtt getSeqID done
+
+[ FCA-UNO ] > mqtt getSeqID ok -> listenMqtt()
+
+[ FCA-UNO ] > fca-unofficial

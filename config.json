@@ -1,0 +1,251 @@
+{
+  "facebookAccount": {
+    "email": "",
+    "password": "",
+    "2FASecret": "",
+    "i_user": "",
+    "proxy": null,
+    "userAgent": "Mozilla/5.0 (Linux; Android 12; M2102J20SG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.0.0 Mobile Safari/537.36",
+    "intervalGetNewCookie": 1440,
+    "notes": "Automatically retrieves new cookies every x minutes. Recommended: 1440 (1 day)."
+  },
+  "antiInbox": false,
+  "language": "en",
+  "notesLanguage": "change language using ISO 639-1 code",
+  "nickNameBot": "—͞ WHITE",
+  "prefix": "/",
+  "adminOnly": {
+    "enable": false,
+    "ignoreCommand": []
+  },
+  "superAdminBot": [
+    "61583835186508"
+  ],
+  "noteSuperAdmin": "Level 3 — Bot owners. Full control including adding/removing other super admins. These IDs also automatically become adminBot.",
+  "accountRotation": {
+    "enable": false,
+    "notes": "Auto-switches to a backup Facebook account when current one is banned/blocked/restricted. Set enable:true to activate. Use /accounts command to manage.",
+    "currentIndex": 0,
+    "restrictedIndexes": [],
+    "lastRotationTime": null,
+    "lastRotationReason": null,
+    "sendFailureThreshold": 5,
+    "rotationCooldownMinutes": 3,
+    "accounts": [
+      {
+        "label": "Main Account",
+        "email": "",
+        "password": "",
+        "2FASecret": ""
+      },
+      {
+        "label": "Backup Account 1",
+        "email": "",
+        "password": "",
+        "2FASecret": ""
+      },
+      {
+        "label": "Backup Account 2",
+        "email": "",
+        "password": "",
+        "2FASecret": ""
+      }
+    ]
+  },
+  "stealth": {
+    "enable": true,
+    "notes": "Human-camouflage system. Randomizes presence, browses Facebook pages, marks messages as read, and rotates user-agents to avoid bot detection.",
+    "sleepHourStart": 2,
+    "sleepHourEnd": 7,
+    "notesSleep": "Hours (0-23) when the bot simulates sleeping: reduces activity, goes offline, rarely browses."
+  },
+  "adminBot": [
+    "61583835186508",
+    "61583739652803",
+    "61568065558392",
+    "61552218617922"
+  ],
+  "noteAdminBot": "Level 2 — Bot moderators. Can use all admin commands except super-admin-only actions.",
+  "humanTyping": {
+    "enable": true,
+    "minDelay": 800,
+    "maxDelay": 4500,
+    "charsPerSecond": 14,
+    "jitterPercent": 25,
+    "notes": "Simulates human typing before every bot reply. minDelay/maxDelay in ms. charsPerSecond controls how fast the bot 'types'. jitterPercent adds randomness."
+  },
+  "reactUnsend": {
+    "enable": true,
+    "onlyAdmin": true,
+    "emojis": [
+      "😡",
+      "🤬"
+    ],
+    "notes": "If enable = true, bot will unsend any message reacted with these emojis. If onlyAdmin = true, only adminBot IDs can trigger it."
+  },
+  "whiteListMode": {
+    "enable": false,
+    "whiteListIds": [],
+    "notes": "If enabled, only IDs in whiteListIds can use the bot."
+  },
+  "whiteListModeThread": {
+    "enable": false,
+    "whiteListThreadIds": [],
+    "notes": "If enabled, only threads in whiteListThreadIds can use the bot."
+  },
+  "antispam": {
+    "enable": true,
+    "maxMessages": 6,
+    "timeWindowSeconds": 8,
+    "warnBeforeAction": true,
+    "action": "kick",
+    "notes": "Kicks users who send more than maxMessages messages within timeWindowSeconds. action: 'warn' | 'kick'. Admins are exempt."
+  },
+  "antiflood": {
+    "enable": true,
+    "sameMessageThreshold": 3,
+    "timeWindowSeconds": 6,
+    "deleteFlood": true,
+    "kickOnFlood": false,
+    "notes": "Detects repeated identical messages. deleteFlood removes them. kickOnFlood kicks the user. Admins are exempt."
+  },
+  "antiImpersonation": {
+    "enable": true,
+    "notes": "Detects users pretending to be admins by using admin-like names or prefixes."
+  },
+  "database": {
+    "type": "sqlite",
+    "uriMongodb": "",
+    "autoSyncWhenStart": false,
+    "autoRefreshThreadInfoFirstTime": true,
+    "notes": "Recommended using 'mongodb' or 'sqlite'."
+  },
+  "timeZone": "Africa/Algiers",
+  "credentials": {
+    "gmailAccount": {
+      "email": "botofnexxo@gmail.com",
+      "clientId": "848792512039-g3mlfd39p9ttu82ga4kahk6kadjr0hcp.apps.googleusercontent.com",
+      "clientSecret": "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",
+      "refreshToken": " ",
+      "apiKey": ""
+    },
+    "gRecaptcha": {
+      "siteKey": "6LfU0TUrAAAAAJVy_tm-q9xlEIEeyBK4N8VwuGdZ",
+      "secretKey": "6LfU0TUrAAAAAOR_CE7oZV-8Eo83LsJmb12-lWFb"
+    }
+  },
+  "dashBoard": {
+    "enable": true,
+    "expireVerifyCode": 300000,
+    "port": 3001
+  },
+  "serverUptime": {
+    "enable": false,
+    "port": 3001,
+    "socket": {
+      "enable": true,
+      "channelName": "uptime",
+      "verifyToken": ""
+    }
+  },
+  "autoRestart": {
+    "time": null,
+    "notes": "Example: 60000 (1min), 3600000 (1hr), 0 0 * * * (daily)."
+  },
+  "autoUptime": {
+    "enable": false,
+    "timeInterval": 180,
+    "url": "",
+    "notes": "Time in seconds. Recommended for uptime monitors. Fixed: no longer causes double-execution."
+  },
+  "autoLoadScripts": {
+    "enable": false,
+    "ignoreCmds": "",
+    "ignoreEvents": "",
+    "notes": "Automatically reloads scripts if edited."
+  },
+  "autoRefreshFbstate": true,
+  "autoReloginWhenChangeAccount": false,
+  "autoRestartWhenListenMqttError": true,
+  "restartListenMqtt": {
+    "enable": true,
+    "timeRestart": 900000,
+    "jitterPercent": 25,
+    "delayAfterStopListening": 3000,
+    "logNoti": true,
+    "notes": "Restart listener around every 15 min. jitterPercent=25 means 11-19 min range (randomized). Reduced frequency to lower bot fingerprint."
+  },
+  "mqttHealthCheck": {
+    "enable": true,
+    "silentTimeoutMinutes": 12,
+    "checkIntervalMinMinutes": 5,
+    "checkIntervalMaxMinutes": 10,
+    "maxRestarts": 5,
+    "backoffMultiplier": 1.5,
+    "maxBackoffMinutes": 20,
+    "notifyAdmins": true,
+    "notes": "Checks every 5-10 min (randomized). Restarts MQTT if silent for silentTimeoutMinutes. Reduced check frequency to lower API load."
+  },
+  "notiWhenListenMqttError": {
+    "notes": "Notification settings when MQTT stops listening.",
+    "gmail": {
+      "enable": false,
+      "emailGetNoti": ""
+    },
+    "telegram": {
+      "enable": false,
+      "botToken": "",
+      "chatId": ""
+    },
+    "discordHook": {
+      "enable": false,
+      "webhookUrl": ""
+    }
+  },
+  "hideNotiMessage": {
+    "commandNotFound": false,
+    "adminOnly": false,
+    "threadBanned": false,
+    "userBanned": false,
+    "needRoleToUseCmd": false,
+    "needRoleToUseCmdOnReply": false,
+    "needRoleToUseCmdOnReaction": false
+  },
+  "logEvents": {
+    "disableAll": false,
+    "message": true,
+    "message_reaction": true,
+    "message_unsend": true,
+    "message_reply": true,
+    "event": true,
+    "read_receipt": false,
+    "typ": false,
+    "presence": false
+  },
+  "optionsFca": {
+    "forceLogin": true,
+    "listenEvents": true,
+    "updatePresence": false,
+    "listenTyping": false,
+    "logLevel": "silent",
+    "selfListen": false,
+    "selfListenEvent": false,
+    "autoMarkDelivery": false,
+    "autoReconnect": true,
+    "notes": "Docs: https://github.com/ntkhang03/fb-chat-api/blob/master/DOCS.md#apisetoptionsoptions"
+  },
+  "e2ee": {
+    "enable": true,
+    "pin": "000000",
+    "notes": [
+      "Liberty Protocol — End-to-End Encryption for Messenger.",
+      "Set 'pin' to your Messenger PIN (the one you set for E2EE backup in Messenger).",
+      "The PIN is used to generate the bot's identity key pair via PBKDF2.",
+      "Works in: private DMs, encrypted groups, and regular groups.",
+      "Supports: X3DH key exchange + Double Ratchet (Signal Protocol), and PIN-based AES-256-GCM.",
+      "You can also set the pin via environment variable E2EE_PIN.",
+      "Commands: /e2ee status | handshake | pin <PIN> | end | verify | setpin <PIN> | sessions",
+      "Message format: Messages encrypted by Liberty Protocol are prefixed with 🔒E2EE:"
+    ]
+  }
+}

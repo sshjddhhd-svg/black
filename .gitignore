@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.env
+.env.*
+webpanel/devhub-config.json
+webpanel/devhub-versions.json
+.cache/
+.local/

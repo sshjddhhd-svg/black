@@ -1,0 +1,114 @@
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+/node_modules/undici/lib/web/webidl/index.js:535
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+/node_modules/undici/lib/web/webidl/index.js:535
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+                                               ^
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+/node_modules/undici/lib/web/webidl/index.js:535
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+                                               ^
+ReferenceError: Blob is not defined
+    at Object.<anonymous> (/node_modules/undici/lib/web/webidl/index.js:535:48)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
+    at Module.load (node:internal/modules/cjs/loader:1076:32)
+    at Function.Module._load (node:internal/modules/cjs/loader:911:12)
+    at Module.require (node:internal/modules/cjs/loader:1100:19)
+    at require (node:internal/modules/cjs/helpers:119:18)
+    at Object.<anonymous> (/node_modules/undici/lib/web/fetch/util.js:12:20)
+    at Module._compile (node:internal/modules/cjs/loader:1198:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1252:10)
