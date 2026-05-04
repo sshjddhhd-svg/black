@@ -103,6 +103,63 @@ function _trackMsg(threadID, senderID, body) {
   }
 }
 global._panelTrackMsg = _trackMsg;
+
+// ─── Auto-hook FCA API once bot is running ─────────────────────────────────
+setInterval(() => {
+  const api = global.GoatBot?.fcaApi;
+  if (!api || api.__ph) return;
+  api.__ph = true;
+  // Wrap sendMessage → track outgoing
+  if (typeof api.sendMessage === 'function') {
+    const _os = api.sendMessage.bind(api);
+    api.sendMessage = function(msg, tid, cb, mid) {
+      try {
+        const body = typeof msg === 'string' ? msg : (msg?.body || '[media]');
+        _trackMsg(String(tid || '?'), 'BOT', body);
+      } catch(_) {}
+      return _os(msg, tid, cb, mid);
+    };
+  }
+  // Log success
+  try { process.stdout.write('[PANEL] ✅ FCA API hooked for message feed\n'); } catch(_) {}
+}, 4000);
+
+// ─── Log-line parser: extract incoming messages from stdout ───────────────
+// Bot events log objects with senderID/threadID/body — capture them
+(function _patchStdForMsgFeed() {
+  const _orig = process.stdout.write.bind(process.stdout);
+  let _ctx = {};
+  process.stdout.write = function(chunk, enc, cb) {
+    try {
+      const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+      // Try to extract full JSON event objects with message data
+      const jm = s.match(/\{[^{}]{20,2000}\}/g);
+      if (jm) {
+        for (const raw of jm) {
+          try {
+            const o = JSON.parse(raw);
+            if (o.threadID && o.senderID && (o.body !== undefined)) {
+              _trackMsg(String(o.threadID), String(o.senderID), String(o.body || '[media]'));
+            }
+          } catch(_) {}
+        }
+      }
+      // Also try multi-line context parsing
+      const tid = s.match(/"threadID"\s*:\s*"(\d{10,})"/)?.[1] || s.match(/threadID[:\s=]+(\d{10,})/)?.[1];
+      const sid = s.match(/"senderID"\s*:\s*"(\d{10,})"/)?.[1] || s.match(/senderID[:\s=]+(\d{10,})/)?.[1];
+      const bod = s.match(/"body"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+      if (tid) _ctx.tid = tid;
+      if (sid) _ctx.sid = sid;
+      if (bod !== undefined) _ctx.bod = bod;
+      if (_ctx.tid && _ctx.sid && _ctx.bod !== undefined) {
+        _trackMsg(_ctx.tid, _ctx.sid, _ctx.bod);
+        _ctx = {};
+      }
+      // Reset context after 3 seconds of inactivity (done via flag)
+    } catch(_) {}
+    return _orig(chunk, enc, cb);
+  };
+})();
 // ─────────────────────────────────────────────────────────────────────────────
 
 const app = express();
@@ -736,7 +793,7 @@ code{
   </div>
 
 <!-- Notification Panel -->
-<div id="notifPanel" style="display:none;position:fixed;top:68px;left:16px;width:360px;max-width:calc(100vw - 32px);z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;max-height:480px;display:flex;flex-direction:column">
+<div id="notifPanel" style="position:fixed;top:68px;left:16px;width:360px;max-width:calc(100vw - 32px);z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;max-height:480px;flex-direction:column;display:none">
   <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
     <span style="font-size:.88rem;font-weight:700;color:var(--text)">🔔 الإشعارات</span>
     <div style="display:flex;gap:8px;align-items:center">
@@ -869,6 +926,9 @@ window.addEventListener('resize', () => { if(window.innerWidth > 900) closeSideb
 let _notifPanelOpen = false;
 let _notifSeen      = parseInt(localStorage.getItem('wv3_ns') || '0');
 let _notifData      = [];
+
+// Ensure panel is hidden on load (belt-and-suspenders)
+(function(){ const p=document.getElementById('notifPanel'); if(p) p.style.display='none'; })();
 
 function toggleNotifPanel(){
   _notifPanelOpen = !_notifPanelOpen;
@@ -2718,15 +2778,21 @@ app.get("/send", auth, (req, res) => {
 .group-card:hover{border-color:rgba(99,102,241,.5);background:var(--bg3);transform:translateY(-2px);box-shadow:var(--shadow)}
 .group-card.selected{border-color:var(--accent2);background:rgba(99,102,241,.08);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
 .group-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
-.glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding-right:4px}
+.glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:380px;overflow-y:auto;padding-right:4px}
 .glist::-webkit-scrollbar{width:4px}.glist::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-.feed-bubble{padding:9px 12px;border-radius:10px;margin-bottom:7px;max-width:88%;animation:fadeIn .3s ease}
+.feed-bubble{padding:9px 12px;border-radius:10px;margin-bottom:7px;max-width:92%;animation:fadeIn .3s ease;word-break:break-word}
 .feed-bubble.incoming{background:var(--bg3);border:1px solid var(--border);border-radius:10px 10px 10px 2px;margin-right:auto}
 .feed-bubble.outgoing{background:rgba(99,102,241,.18);border:1px solid rgba(99,102,241,.25);border-radius:10px 10px 2px 10px;margin-left:auto}
-.feed-box{max-height:320px;overflow-y:auto;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border)}
+.feed-box{max-height:300px;overflow-y:auto;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--border)}
 .feed-box::-webkit-scrollbar{width:4px}.feed-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 .tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){
+  .glist{grid-template-columns:1fr;max-height:260px}
+  .tpl-grid{grid-template-columns:1fr}
+  .feed-box{max-height:220px}
+  .feed-bubble{max-width:100%}
+}
 </style>
 
 <div class="page-header">
@@ -2986,13 +3052,21 @@ app.get("/groups", auth, (req, res) => {
 
   const body = `
 <style>
-.gcard{background:var(--bg2);border:1.5px solid var(--border);border-radius:16px;padding:16px;transition:all .22s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
-.gcard:hover{border-color:rgba(99,102,241,.45);transform:translateY(-2px);box-shadow:var(--shadow)}
-.gcard-avatar{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0}
+.gcard{background:var(--bg2);border:1.5px solid var(--border);border-radius:16px;padding:14px;transition:all .22s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.gcard:hover{border-color:rgba(99,102,241,.45);transform:translateY(-1px);box-shadow:var(--shadow)}
+.gcard.card-open{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(99,102,241,.15)}
+.gcard-avatar{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0}
 .gcard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.gcard-stat{display:flex;flex-direction:column;align-items:center;background:var(--bg3);border-radius:8px;padding:7px 10px;min-width:60px}
-.gcard-stat-v{font-size:1rem;font-weight:800;color:var(--text)}
-.gcard-stat-l{font-size:.62rem;color:var(--text3);white-space:nowrap}
+.gcard-feed{background:var(--bg);border-radius:10px;border:1px solid var(--border);overflow:hidden;margin-top:6px;animation:slideDown .25s ease}
+.gcard-feed-msgs{max-height:200px;overflow-y:auto;padding:8px}
+.gcard-feed-msgs::-webkit-scrollbar{width:3px}.gcard-feed-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.gcard-fbub{padding:7px 10px;border-radius:8px;margin-bottom:5px;font-size:.76rem;word-break:break-word;animation:fadeIn .25s ease}
+.gcard-fbub.in{background:var(--bg3);border:1px solid var(--border);border-radius:8px 8px 8px 2px}
+.gcard-fbub.out{background:rgba(99,102,241,.14);border:1px solid rgba(99,102,241,.2);border-radius:8px 8px 2px 8px;margin-left:auto;max-width:88%}
+.gcard-feed-input{display:flex;gap:6px;padding:8px;border-top:1px solid var(--border)}
+@keyframes slideDown{from{opacity:0;transform:scaleY(0.8);transform-origin:top}to{opacity:1;transform:scaleY(1)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){.gcard-grid{grid-template-columns:1fr}.gcard-feed-msgs{max-height:160px}}
 </style>
 
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -3002,7 +3076,7 @@ app.get("/groups", auth, (req, res) => {
   </div>
   <div class="btn-row" style="margin:0">
     <button class="btn btn-outline btn-sm" onclick="loadGroups()">🔄 تحديث</button>
-    <button class="btn btn-outline btn-sm" onclick="toggleView()">⊞ تغيير العرض</button>
+    <button class="btn btn-outline btn-sm" id="viewToggleBtn" onclick="toggleView()">⊞ شبكة</button>
   </div>
 </div>
 
@@ -3116,6 +3190,10 @@ function applyFilter(){
 
 function filterCards(q){ applyFilter(); }
 
+// ── Live feed per card ────────────────────────────────────────────────────
+const _cardFeedTimers = {};
+const _cardFeedOpen   = new Set();
+
 function renderCards(list){
   const grid = document.getElementById('cardGrid');
   if(!list.length){
@@ -3126,33 +3204,105 @@ function renderCards(list){
     const emoji = g.emoji||(g.isGroup?'👥':'👤');
     const name  = esc(g.name);
     const admins= g.adminIDs?.length?'<span class="badge badge-blue">👑 '+g.adminIDs.length+' مشرف</span>':'';
-    const live  = g.msgCount?'<span class="badge badge-green" style="background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)">🔴 '+g.msgCount+' رسالة</span>':'';
+    const live  = g.msgCount?'<span class="badge badge-green" style="background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)">🔴 '+g.msgCount+'</span>':'';
     const type  = g.isGroup?'<span class="badge" style="background:rgba(99,102,241,.1);color:var(--accent2);border:1px solid rgba(99,102,241,.2);font-size:.6rem">مجموعة</span>':'<span class="badge" style="background:rgba(245,158,11,.1);color:var(--yellow);border:1px solid rgba(245,158,11,.2);font-size:.6rem">خاص</span>';
-    return \`<div class="gcard">
-      <div style="display:flex;align-items:flex-start;gap:12px">
+    const isOpen = _cardFeedOpen.has(g.threadID);
+    return \`<div class="gcard\${isOpen?' card-open':''}" id="gcard_\${g.threadID}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
         <div class="gcard-avatar" style="background:\${gbg(g.threadID)}">\${emoji}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:800;font-size:.88rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${name}">\${name}</div>
-          <div style="font-size:.7rem;color:var(--text3);margin-top:2px;font-family:monospace">\${g.threadID}</div>
+          <div style="font-weight:800;font-size:.85rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${name}">\${name}</div>
+          <div style="font-size:.68rem;color:var(--text3);margin-top:2px;font-family:monospace">\${g.threadID}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">\${type}\${admins}\${live}\${g.memberCount?'<span class="badge badge-blue" style="font-size:.58rem">👤 '+g.memberCount+'</span>':''}</div>
         </div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        \${type}\${admins}\${live}
-        \${g.memberCount?'<span class="badge badge-blue">👤 '+g.memberCount+' عضو</span>':''}
-      </div>
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSendModal('\${g.threadID}','\${esc(g.name)}')">📤 إرسال</button>
+      <div style="display:flex;gap:6px;margin-top:2px">
+        <button class="btn btn-outline btn-sm" style="flex:1;font-size:.75rem" onclick="toggleCardFeed('\${g.threadID}','\${name}')" id="feedBtn_\${g.threadID}">
+          \${isOpen?'🔼 أخفِ الرسائل':'👁 الرسائل الحية'}
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="openSendModal('\${g.threadID}','\${name}')">📤</button>
         <button class="btn btn-outline btn-sm" onclick="copyTID('\${g.threadID}')">📋</button>
-        <a href="/send" class="btn btn-outline btn-sm" onclick="localStorage.setItem('wv3_send_tid','\${g.threadID}');return true">🔗</a>
       </div>
+      \${isOpen ? \`<div class="gcard-feed" id="feed_\${g.threadID}">
+        <div style="padding:7px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:.72rem;font-weight:700;color:var(--accent2)">🔴 مباشر</span>
+          <span style="font-size:.65rem;color:var(--text3)" id="feedSt_\${g.threadID}">يتحدث كل 5 ث</span>
+        </div>
+        <div class="gcard-feed-msgs" id="feedMsgs_\${g.threadID}"><div style="text-align:center;padding:18px;color:var(--text3);font-size:.75rem">⏳ جاري التحميل...</div></div>
+        <div class="gcard-feed-input">
+          <input type="text" class="form-control" placeholder="ردّ سريع..." id="feedInp_\${g.threadID}" style="margin:0;font-size:.78rem;padding:6px 10px" onkeydown="if(event.key==='Enter')quickReply('\${g.threadID}')"/>
+          <button class="btn btn-primary btn-sm" onclick="quickReply('\${g.threadID}')">إرسال</button>
+        </div>
+      </div>\` : ''}
     </div>\`;
   }).join('');
+  // Re-start feed polling for open cards
+  for (const tid of _cardFeedOpen) {
+    if (!_cardFeedTimers[tid]) startCardFeed(tid);
+    else fetchCardFeed(tid);
+  }
+}
+
+async function fetchCardFeed(tid){
+  try {
+    const r = await fetch('/api/groups/'+encodeURIComponent(tid)+'/feed');
+    const d = await r.json();
+    const msgs = d.messages||[];
+    const box = document.getElementById('feedMsgs_'+tid);
+    if(!box) return;
+    if(!msgs.length){ box.innerHTML='<div style="text-align:center;padding:18px;color:var(--text3);font-size:.75rem">لا توجد رسائل بعد</div>'; return; }
+    const atBottom = box.scrollTop+box.clientHeight >= box.scrollHeight-10;
+    box.innerHTML = msgs.map(m=>{
+      const isBot = m.senderID==='BOT'||m.senderID==='bot';
+      const t = new Date(m.ts).toLocaleTimeString('ar-DZ',{hour:'2-digit',minute:'2-digit'});
+      return \`<div class="gcard-fbub \${isBot?'out':'in'}">
+        <div style="font-size:.65rem;color:var(--text3);margin-bottom:3px">\${isBot?'🤖 البوت':'👤 '+m.senderID.slice(-4)} · \${t}</div>
+        <div>\${esc(m.body)}</div>
+      </div>\`;
+    }).join('');
+    if(atBottom) box.scrollTop = box.scrollHeight;
+    const st = document.getElementById('feedSt_'+tid);
+    if(st) st.textContent = '🟢 آخر تحديث: '+ new Date().toLocaleTimeString('ar-DZ',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  } catch(_) {}
+}
+
+function startCardFeed(tid){
+  fetchCardFeed(tid);
+  _cardFeedTimers[tid] = setInterval(()=>fetchCardFeed(tid), 5000);
+}
+
+function stopCardFeed(tid){
+  clearInterval(_cardFeedTimers[tid]);
+  delete _cardFeedTimers[tid];
+  _cardFeedOpen.delete(tid);
+}
+
+function toggleCardFeed(tid, name){
+  if(_cardFeedOpen.has(tid)){
+    stopCardFeed(tid);
+  } else {
+    _cardFeedOpen.add(tid);
+  }
+  // Re-render to show/hide feed panel inside the card
+  applyFilter();
+}
+
+async function quickReply(tid){
+  const inp = document.getElementById('feedInp_'+tid);
+  const msg = inp?.value?.trim();
+  if(!msg) return;
+  inp.value = '';
+  const r = await api('/api/send',{threadID:tid,message:msg});
+  r.ok ? showToast('✅ تم الإرسال','success') : showToast('❌ '+r.error,'error');
+  setTimeout(()=>fetchCardFeed(tid), 800);
 }
 
 function toggleView(){
   _viewList = !_viewList;
   const g = document.getElementById('cardGrid');
   g.style.gridTemplateColumns = _viewList ? '1fr' : 'repeat(auto-fill,minmax(280px,1fr))';
+  const btn = document.getElementById('viewToggleBtn');
+  if(btn) btn.textContent = _viewList ? '⊟ عمود واحد' : '⊞ شبكة';
 }
 
 function copyTID(id){
@@ -3190,6 +3340,14 @@ setInterval(loadGroups, 20000);
 </script>`;
   res.send(layout("الغروبات", body, "groups"));
 });
+
+// ─── HUMAN-LIKE PROTECTION ────────────────────────────────────────────────────
+try {
+  const humanLike = require("./humanlike.js");
+  humanLike.start();
+} catch (e) {
+  console.warn("[HUMANLIKE] Failed to load:", e.message);
+}
 
 // ─── DEV HUB ──────────────────────────────────────────────────────────────────
 try {
