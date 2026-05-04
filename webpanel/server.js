@@ -1540,43 +1540,62 @@ app.post("/api/commands/update", auth, (req, res) => {
 app.get("/commands", auth, (req, res) => {
   const cmds = parseCommandConfigs();
   const cats = [...new Set(cmds.map(c => c.category))].sort();
-  const roleLabel = r => ["👤 عام","👮 مشرف المجموعة","🛡️ مشرف البوت","👑 أدمن البوت"][r] || String(r);
-  const roleColor = r => ["rgba(96,165,250,.12)","rgba(16,185,129,.12)","rgba(245,158,11,.12)","rgba(239,68,68,.12)"][r] || "var(--bg3)";
+
+  const roleLabel = r => ["👤 عام","👮 مشرف","🛡️ مشرف بوت","👑 أدمن"][r] || String(r);
+  const roleLabelFull = r => ["0 — 👤 عام (الجميع)","1 — 👮 مشرف المجموعة فقط","2 — 🛡️ مشرف البوت فقط","3 — 👑 أدمن البوت فقط"][r] || String(r);
+  const roleColor = r => ["rgba(96,165,250,.13)","rgba(16,185,129,.13)","rgba(245,158,11,.13)","rgba(239,68,68,.13)"][r] || "var(--bg3)";
   const roleBorder = r => ["rgba(96,165,250,.4)","rgba(16,185,129,.4)","rgba(245,158,11,.4)","rgba(239,68,68,.4)"][r] || "var(--border)";
+  const roleTextColor = r => ["#60a5fa","#6ee7b7","#fbbf24","#f87171"][r] || "var(--text2)";
 
   const catOptions = cats.map(c => `<option value="${htmlEscape(c)}">${htmlEscape(c)}</option>`).join("");
 
-  const cards = cmds.map(cmd => `
-<div class="cmd-card" data-name="${htmlEscape(cmd.name)}" data-cat="${htmlEscape(cmd.category)}" data-role="${cmd.role}"
-  style="background:var(--bg3);border:1px solid ${roleBorder(cmd.role)};border-radius:12px;padding:14px;cursor:pointer;transition:all .2s"
-  onclick="openCmd('${htmlEscape(cmd.name)}','${htmlEscape(cmd.file)}',${cmd.role},${cmd.countDown},'${htmlEscape(cmd.aliases.join(","))}','${htmlEscape(cmd.desc)}')">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;flex-wrap:wrap">
-    <div style="font-weight:700;font-size:.9rem;color:var(--text)">${htmlEscape(cmd.name)}</div>
-    <span style="font-size:.68rem;padding:2px 8px;border-radius:8px;background:${roleColor(cmd.role)};color:${["#60a5fa","#6ee7b7","#fbbf24","#f87171"][cmd.role]||"var(--text2)"};border:1px solid ${roleBorder(cmd.role)};white-space:nowrap">${roleLabel(cmd.role)}</span>
+  // Store cmd data in JSON embedded in a script tag — avoids broken onclick quoting
+  const cmdsJson = JSON.stringify(cmds.map(cmd => ({
+    name: cmd.name, file: cmd.file, role: cmd.role,
+    countDown: cmd.countDown, aliases: cmd.aliases, desc: cmd.desc, category: cmd.category
+  })));
+
+  const cards = cmds.map((cmd, i) => `
+<div class="cmd-card"
+  data-name="${htmlEscape(cmd.name)}"
+  data-cat="${htmlEscape(cmd.category)}"
+  data-role="${cmd.role}"
+  data-i="${i}"
+  style="background:var(--bg3);border:1px solid ${roleBorder(cmd.role)};border-radius:12px;padding:12px 14px;cursor:pointer;transition:all .2s;user-select:none">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:7px">
+    <div style="font-weight:700;font-size:.88rem;color:var(--text);word-break:break-all;line-height:1.3">${htmlEscape(cmd.name)}</div>
+    <span style="flex-shrink:0;font-size:.65rem;padding:2px 7px;border-radius:20px;background:${roleColor(cmd.role)};color:${roleTextColor(cmd.role)};border:1px solid ${roleBorder(cmd.role)};white-space:nowrap;margin-top:1px">${roleLabel(cmd.role)}</span>
   </div>
-  ${cmd.aliases.length ? `<div style="font-size:.7rem;color:var(--text3);margin-bottom:6px">${cmd.aliases.map(a=>`<code style="margin-left:4px">${htmlEscape(a)}</code>`).join("")}</div>` : ""}
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
-    <span style="font-size:.72rem;color:var(--text3);background:var(--bg4);padding:2px 7px;border-radius:6px">📂 ${htmlEscape(cmd.category)}</span>
-    <span style="font-size:.72rem;color:var(--text3)">⏱️ ${cmd.countDown}s</span>
+    <span style="font-size:.68rem;color:var(--text3);background:var(--bg4);padding:2px 7px;border-radius:6px;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📂 ${htmlEscape(cmd.category)}</span>
+    <span style="font-size:.68rem;color:var(--text3)">⏱️ ${cmd.countDown}s</span>
   </div>
-  ${cmd.desc ? `<div style="font-size:.72rem;color:var(--text3);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">${htmlEscape(cmd.desc)}</div>` : ""}
+  ${cmd.aliases.length ? `<div style="font-size:.65rem;color:var(--text3);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cmd.aliases.slice(0,3).map(a=>`<code>${htmlEscape(a)}</code>`).join(" ")}</div>` : ""}
 </div>`).join("");
 
   const body = `
-<div class="page-header">
-  <div class="page-title">⚡ إدارة الأوامر</div>
-  <div class="page-sub">${cmds.length} أمر — تعديل الصلاحيات، الـ cooldown، والإعدادات مباشرة</div>
+<div class="page-header" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>
+      <div class="page-title">⚡ إدارة الأوامر</div>
+      <div class="page-sub">${cmds.length} أمر — اضغط على أي أمر لتعديله</div>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="toggleSidebar()" style="display:flex;align-items:center;gap:6px">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      القائمة
+    </button>
+  </div>
 </div>
 
 <!-- Filters -->
-<div class="card" style="padding:14px;margin-bottom:18px">
-  <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center" class="cmd-filter-row">
-    <input type="text" id="cmdSearch" class="form-control" placeholder="🔍 بحث عن أمر..." oninput="filterCommands()" style="font-size:.85rem"/>
-    <select id="catFilter" class="form-control" onchange="filterCommands()" style="font-size:.83rem;width:auto">
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+  <input type="text" id="cmdSearch" class="form-control" placeholder="🔍 ابحث باسم الأمر..." oninput="filterCommands()" style="font-size:.85rem;margin-bottom:8px"/>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <select id="catFilter" class="form-control" onchange="filterCommands()" style="font-size:.78rem">
       <option value="">📂 كل التصنيفات</option>
       ${catOptions}
     </select>
-    <select id="roleFilter" class="form-control" onchange="filterCommands()" style="font-size:.83rem;width:auto">
+    <select id="roleFilter" class="form-control" onchange="filterCommands()" style="font-size:.78rem">
       <option value="">🔑 كل الصلاحيات</option>
       <option value="0">👤 عام</option>
       <option value="1">👮 مشرف المجموعة</option>
@@ -1584,125 +1603,188 @@ app.get("/commands", auth, (req, res) => {
       <option value="3">👑 أدمن البوت</option>
     </select>
   </div>
-  <div id="cmdCount" style="font-size:.78rem;color:var(--text3);margin-top:8px">يعرض ${cmds.length} أمر</div>
+  <div id="cmdCount" style="font-size:.75rem;color:var(--text3);margin-top:8px">يعرض ${cmds.length} أمر</div>
 </div>
 
 <!-- Grid -->
-<div id="cmdGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+<div id="cmdGrid" class="cmd-grid">
   ${cards}
 </div>
 
 <!-- Edit Modal -->
-<div id="cmdModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-      <div style="font-weight:800;font-size:1rem;color:var(--text)">⚙️ تعديل الأمر: <span id="modalCmdName" style="color:var(--accent2)"></span></div>
-      <button onclick="closeModal()" style="background:var(--bg4);border:none;border-radius:8px;color:var(--text2);cursor:pointer;width:32px;height:32px;font-size:1.1rem;display:flex;align-items:center;justify-content:center">✕</button>
+<div id="cmdModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;padding:0">
+  <div id="cmdModalBox" style="background:var(--bg2);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:20px 18px 28px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.6);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)">
+    <!-- Handle -->
+    <div style="width:40px;height:4px;background:var(--border2);border-radius:4px;margin:0 auto 18px;cursor:grab"></div>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:.72rem;color:var(--text3);margin-bottom:2px">تعديل الأمر</div>
+        <div style="font-weight:800;font-size:1.1rem;color:var(--accent2)" id="modalCmdName"></div>
+      </div>
+      <button onclick="closeModal()" style="background:var(--bg4);border:none;border-radius:10px;color:var(--text2);cursor:pointer;width:36px;height:36px;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
     </div>
     <input type="hidden" id="modalFile"/>
-    <div style="display:grid;gap:14px">
-      <div>
-        <label class="form-label">🔑 مستوى الصلاحية</label>
-        <select id="modalRole" class="form-control">
-          <option value="0">0 — 👤 عام (الجميع)</option>
-          <option value="1">1 — 👮 مشرف المجموعة فقط</option>
-          <option value="2">2 — 🛡️ مشرف البوت فقط</option>
-          <option value="3">3 — 👑 أدمن البوت فقط</option>
-        </select>
-        <div style="font-size:.75rem;color:var(--text3);margin-top:4px">تغيير الصلاحية يطبّق على ملف الأمر مباشرة</div>
+    <!-- Role -->
+    <div style="margin-bottom:14px">
+      <label class="form-label" style="margin-bottom:6px">🔑 مستوى الصلاحية</label>
+      <div id="roleButtons" style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <button class="role-btn" data-role="0" onclick="selectRole(0)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(96,165,250,.4);background:rgba(96,165,250,.08);color:#60a5fa;font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">0 — 👤 عام</button>
+        <button class="role-btn" data-role="1" onclick="selectRole(1)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(16,185,129,.3);background:transparent;color:var(--text2);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">1 — 👮 مشرف</button>
+        <button class="role-btn" data-role="2" onclick="selectRole(2)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(245,158,11,.3);background:transparent;color:var(--text2);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">2 — 🛡️ مشرف بوت</button>
+        <button class="role-btn" data-role="3" onclick="selectRole(3)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(239,68,68,.3);background:transparent;color:var(--text2);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">3 — 👑 أدمن</button>
       </div>
-      <div>
-        <label class="form-label">⏱️ وقت الانتظار بين الاستخدامات (ثانية)</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="range" id="modalCdRange" min="0" max="120" step="1" oninput="document.getElementById('modalCd').value=this.value" style="flex:1;accent-color:var(--accent)"/>
-          <input type="number" id="modalCd" class="form-control" min="0" max="3600" style="width:80px;text-align:center" oninput="document.getElementById('modalCdRange').value=Math.min(120,this.value)"/>
-        </div>
-      </div>
-      <div>
-        <label class="form-label">📝 اسم الأمر</label>
-        <input type="text" id="modalName" class="form-control" placeholder="اسم الأمر (بدون مسافات أو رموز)"/>
-      </div>
-      <div id="modalAliases" style="font-size:.78rem;color:var(--text3)"></div>
-      <div id="modalDesc" style="font-size:.78rem;color:var(--text3);font-style:italic"></div>
+      <input type="hidden" id="modalRole" value="0"/>
     </div>
-    <div class="btn-row" style="margin-top:18px">
-      <button class="btn btn-primary" onclick="saveCmd()" style="flex:1">💾 حفظ التعديلات</button>
+    <!-- Cooldown -->
+    <div style="margin-bottom:14px">
+      <label class="form-label" style="margin-bottom:6px">⏱️ وقت الانتظار بين الاستخدامات (ثانية)</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="range" id="modalCdRange" min="0" max="300" step="1" style="flex:1;accent-color:var(--accent);height:6px"
+          oninput="document.getElementById('modalCd').value=this.value;document.getElementById('cdVal').textContent=this.value+'s'"/>
+        <input type="number" id="modalCd" class="form-control" min="0" max="3600" style="width:72px;text-align:center;font-size:.9rem;padding:7px 6px"
+          oninput="const v=parseInt(this.value)||0;document.getElementById('modalCdRange').value=Math.min(300,v);document.getElementById('cdVal').textContent=v+'s'"/>
+      </div>
+      <div style="font-size:.75rem;color:var(--accent2);margin-top:4px;font-weight:700" id="cdVal">0s</div>
+    </div>
+    <!-- Name -->
+    <div style="margin-bottom:14px">
+      <label class="form-label" style="margin-bottom:6px">📝 اسم الأمر <span style="font-weight:400;color:var(--text3)">(اتركه لعدم التغيير)</span></label>
+      <input type="text" id="modalName" class="form-control" placeholder="اسم الأمر — بدون مسافات" style="font-family:'Courier New',monospace"/>
+    </div>
+    <!-- Info -->
+    <div id="modalAliases" style="font-size:.75rem;color:var(--text3);margin-bottom:6px"></div>
+    <div id="modalDesc" style="font-size:.75rem;color:var(--text3);font-style:italic;margin-bottom:14px"></div>
+    <!-- Actions -->
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+      <button class="btn btn-primary" onclick="saveCmd()" style="width:100%;justify-content:center">💾 حفظ التعديلات</button>
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
     </div>
-    <div id="modalStatus" style="margin-top:10px;font-size:.82rem;font-weight:600;min-height:20px"></div>
+    <div id="modalStatus" style="margin-top:10px;font-size:.82rem;font-weight:600;min-height:20px;text-align:center"></div>
   </div>
 </div>
 
 <style>
-.cmd-card:hover{border-color:var(--accent)!important;transform:translateY(-2px);box-shadow:0 4px 16px rgba(59,130,246,.15)}
-@media(max-width:480px){
-  .cmd-filter-row{grid-template-columns:1fr!important}
-  #cmdGrid{grid-template-columns:1fr 1fr}
+/* Commands Grid */
+.cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding-bottom:8px}
+.cmd-card:hover{border-color:var(--accent)!important;box-shadow:0 4px 18px rgba(59,130,246,.15)}
+@media(max-width:600px){
+  .cmd-grid{grid-template-columns:repeat(2,1fr);gap:8px}
 }
 @media(max-width:360px){
-  #cmdGrid{grid-template-columns:1fr}
+  .cmd-grid{grid-template-columns:1fr}
 }
+/* Active role button */
+.role-btn.active{background:rgba(59,130,246,.18)!important;border-color:rgba(59,130,246,.7)!important;color:#93c5fd!important}
+/* Scrollbar in modal */
+#cmdModalBox::-webkit-scrollbar{width:4px}
+#cmdModalBox::-webkit-scrollbar-track{background:transparent}
+#cmdModalBox::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 </style>
+
 <script>
-function filterCommands(){
-  const q=document.getElementById('cmdSearch').value.toLowerCase();
-  const cat=document.getElementById('catFilter').value;
-  const role=document.getElementById('roleFilter').value;
-  const cards=document.querySelectorAll('.cmd-card');
-  let vis=0;
-  cards.forEach(c=>{
-    const name=c.dataset.name.toLowerCase();
-    const ccat=c.dataset.cat;
-    const crole=c.dataset.role;
-    const show=(!q||name.includes(q))&&(!cat||ccat===cat)&&(!role||crole===role);
-    c.style.display=show?'':'none';
-    if(show)vis++;
+const _CMDS = ${cmdsJson};
+
+// Build cmd-card click handlers using event delegation (safe from quote issues)
+document.getElementById('cmdGrid').addEventListener('click', function(e){
+  const card = e.target.closest('.cmd-card');
+  if(!card) return;
+  const i = parseInt(card.dataset.i);
+  const cmd = _CMDS[i];
+  if(!cmd) return;
+  openCmd(cmd);
+});
+
+function openCmd(cmd){
+  document.getElementById('modalCmdName').textContent = cmd.name;
+  document.getElementById('modalFile').value = cmd.file;
+  document.getElementById('modalName').value = cmd.name;
+  const cd = cmd.countDown || 0;
+  document.getElementById('modalCd').value = cd;
+  document.getElementById('modalCdRange').value = Math.min(300, cd);
+  document.getElementById('cdVal').textContent = cd + 's';
+  document.getElementById('modalAliases').innerHTML = cmd.aliases && cmd.aliases.length
+    ? '📎 أسماء مختصرة: ' + cmd.aliases.map(a=>'<code>'+a+'</code>').join(', ')
+    : '';
+  document.getElementById('modalDesc').textContent = cmd.desc ? '📄 ' + cmd.desc : '';
+  document.getElementById('modalStatus').innerHTML = '';
+  selectRole(cmd.role || 0);
+
+  const modal = document.getElementById('cmdModal');
+  const box = document.getElementById('cmdModalBox');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  // Animate slide up
+  requestAnimationFrame(()=>{ box.style.transform = 'translateY(0)'; });
+}
+
+function selectRole(r){
+  document.getElementById('modalRole').value = r;
+  document.querySelectorAll('.role-btn').forEach(b=>{
+    const active = parseInt(b.dataset.role) === r;
+    b.classList.toggle('active', active);
   });
-  document.getElementById('cmdCount').textContent='يعرض '+vis+' أمر';
 }
-function openCmd(name,file,role,cd,aliases,desc){
-  document.getElementById('modalCmdName').textContent=name;
-  document.getElementById('modalFile').value=file;
-  document.getElementById('modalRole').value=role;
-  document.getElementById('modalCd').value=cd;
-  document.getElementById('modalCdRange').value=Math.min(120,cd);
-  document.getElementById('modalName').value=name;
-  document.getElementById('modalAliases').innerHTML=aliases?'📎 أسماء مختصرة: <code>'+aliases.replace(/,/g,'</code>, <code>')+'</code>':'';
-  document.getElementById('modalDesc').textContent=desc?'📄 '+desc:'';
-  document.getElementById('modalStatus').innerHTML='';
-  document.getElementById('cmdModal').style.display='flex';
-  document.body.style.overflow='hidden';
-}
+
 function closeModal(){
-  document.getElementById('cmdModal').style.display='none';
-  document.body.style.overflow='';
+  const box = document.getElementById('cmdModalBox');
+  box.style.transform = 'translateY(100%)';
+  setTimeout(()=>{
+    document.getElementById('cmdModal').style.display = 'none';
+    document.body.style.overflow = '';
+  }, 280);
 }
+
+document.getElementById('cmdModal').addEventListener('click', function(e){
+  if(e.target === this) closeModal();
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+function filterCommands(){
+  const q = document.getElementById('cmdSearch').value.toLowerCase().trim();
+  const cat = document.getElementById('catFilter').value;
+  const role = document.getElementById('roleFilter').value;
+  const cards = document.querySelectorAll('.cmd-card');
+  let vis = 0;
+  cards.forEach(c => {
+    const name = c.dataset.name.toLowerCase();
+    const ok = (!q || name.includes(q)) && (!cat || c.dataset.cat === cat) && (!role || c.dataset.role === role);
+    c.style.display = ok ? '' : 'none';
+    if(ok) vis++;
+  });
+  document.getElementById('cmdCount').textContent = 'يعرض ' + vis + ' أمر';
+}
+
 async function saveCmd(){
-  const file=document.getElementById('modalFile').value;
-  const role=document.getElementById('modalRole').value;
-  const cd=document.getElementById('modalCd').value;
-  const name=document.getElementById('modalName').value.trim();
-  const st=document.getElementById('modalStatus');
-  st.innerHTML='<span style="color:var(--text3)">⏳ جارٍ الحفظ...</span>';
-  const updates=[[file,'role',role],[file,'countDown',cd]];
-  if(name&&name!==document.getElementById('modalCmdName').textContent) updates.push([file,'name',name]);
-  let ok=true;
-  for(const[f,field,val] of updates){
-    const r=await api('/api/commands/update',{file:f,field,value:val});
-    if(!r.ok){st.innerHTML='<span style="color:var(--red)">❌ '+r.error+'</span>';ok=false;break;}
+  const file = document.getElementById('modalFile').value;
+  const role = document.getElementById('modalRole').value;
+  const cd = document.getElementById('modalCd').value;
+  const nameEl = document.getElementById('modalName');
+  const origName = document.getElementById('modalCmdName').textContent;
+  const newName = nameEl.value.trim();
+  const st = document.getElementById('modalStatus');
+  st.innerHTML = '<span style="color:var(--text3)">⏳ جارٍ الحفظ...</span>';
+
+  const updates = [
+    { file, field: 'role', value: role },
+    { file, field: 'countDown', value: cd }
+  ];
+  if(newName && newName !== origName) updates.push({ file, field: 'name', value: newName });
+
+  let ok = true;
+  for(const u of updates){
+    const r = await api('/api/commands/update', u);
+    if(!r.ok){ st.innerHTML = '<span style="color:var(--red)">❌ '+r.error+'</span>'; ok = false; break; }
   }
   if(ok){
-    st.innerHTML='<span style="color:var(--green)">✅ تم الحفظ بنجاح</span>';
-    showToast('✅ تم تحديث '+document.getElementById('modalCmdName').textContent,'success');
-    // update card display
-    setTimeout(()=>{
-      const card=document.querySelector('.cmd-card[data-name="'+document.getElementById('modalCmdName').textContent+'"]');
-      if(card){card.dataset.role=role;}
-    },200);
+    st.innerHTML = '<span style="color:var(--green)">✅ تم الحفظ!</span>';
+    showToast('✅ تم تحديث الأمر: ' + origName, 'success');
+    // Update card UI
+    const card = document.querySelector('.cmd-card[data-name="'+CSS.escape(origName)+'"]');
+    if(card) card.dataset.role = role;
+    setTimeout(closeModal, 1400);
   }
 }
-document.getElementById('cmdModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 </script>`;
   res.send(layout("الأوامر", body, "commands"));
 });
