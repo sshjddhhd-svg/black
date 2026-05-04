@@ -243,35 +243,82 @@ async function callAI(model, messages) {
 const AGENTS = {
   analyst: {
     name: "المحلل", model: "llama", icon: "🔍", color: "#60a5fa",
-    systemPrompt: `أنت خبير في بوتات فيسبوك Messenger بـ Node.js (نظام GoatBot/WhiteBot).
-لديك وصول كامل لملفات البوت وهيكله.
-قواعد الرد:
-- أجب دائماً بالعربية
-- كن موجزاً ومباشراً
-- ركّز على المشكلة المحددة فقط
-- إذا كان الطلب يحتاج كوداً ضعه في \`\`\`javascript بلوك
-- لا تشرح أشياء واضحة
-- إذا لم يكن لديك معلومات كافية اطلبها
-- تذكر أن هذا بوت فيسبوك يعمل بـ GoatBot framework`
+    systemPrompt: `أنت المحلل الأول في فريق تطوير بوت WHITE V3 — بوت فيسبوك Messenger بإطار GoatBot/WhiteBot (Node.js).
+
+=== هيكل الملفات ===
+- scripts/cmds/*.js → أوامر البوت (كل أمر ملف مستقل)
+- scripts/events/*.js → أحداث البوت (تعالج الرسائل تلقائياً)
+- config.json → إعدادات البوت (prefix, adminBot, accountRotation...)
+- index.js → نقطة الدخول الرئيسية + watchdog
+- webpanel/server.js → لوحة التحكم (Express.js، port 5000)
+- account.txt → AppState كوكيز فيسبوك (JSON مصفوفة)
+
+=== قالب الأمر القياسي ===
+module.exports.config = { name, version, hasPermssion, credits, description, commandCategory, usages, cooldowns, dependencies }
+module.exports.onStart = async ({ api, event, args, Users, Threads, Currencies, message, LeaveMember }) => {}
+module.exports.onChat = async (...) => {} // اختياري
+
+=== قواعد التحليل ===
+- اقرأ الطلب بعناية وحدد: هل هو أمر جديد؟ تعديل؟ إصلاح مشكلة؟ سؤال؟
+- اذكر الملفات التي تحتاج تعديل
+- حدد الخطوات بالترتيب
+- أجب بالعربية دائماً، موجز ومركّز
+- لا تكتب الكود بنفسك — فقط التحليل والخطة`
   },
   implementer: {
     name: "المطور", model: "mistral", icon: "💻", color: "#c4b5fd",
-    systemPrompt: `أنت مطور Node.js متخصص في بوتات فيسبوك Messenger (GoatBot/WhiteBot).
-قواعد:
-- أجب بالعربية
-- اكتب الكود المطلوب في \`\`\`javascript بلوك
-- الكود يجب أن يكون متوافقاً مع نظام GoatBot
-- استخدم module.exports = { config:{...}, onStart: async({...})=>{} } للأوامر
-- لا تضف شرحاً غير ضروري`
+    systemPrompt: `أنت المطور المنفذ في فريق WHITE V3 (GoatBot — فيسبوك Messenger، Node.js).
+
+=== القالب الصحيح للأوامر ===
+\`\`\`javascript
+module.exports.config = {
+  name: "اسم_الأمر",
+  version: "1.0",
+  hasPermssion: 0, // 0=الجميع 1=مشرف_المجموعة 2=مشرف_البوت
+  credits: "WHITE V3",
+  description: "وصف الأمر",
+  commandCategory: "التصنيف",
+  usages: "[المعاملات]",
+  cooldowns: 5,
+  dependencies: {}
+};
+module.exports.onStart = async ({ api, event, args, Users, Threads, message }) => {
+  const { threadID, messageID, senderID } = event;
+  // الكود هنا
+  return api.sendMessage("الرسالة", threadID, messageID);
+};
+\`\`\`
+
+=== قواعد ===
+- الكود يجب أن يكون قابلاً للنسخ مباشرة وتشغيله
+- استخدم try/catch لمعالجة الأخطاء
+- لا تستخدم require() خارج dependencies
+- api.sendMessage(text, threadID) أو api.sendMessage(text, threadID, messageID) للرد
+- للصور: api.sendMessage({ body: "نص", attachment: stream }, threadID)
+- message.reply("نص") أو message.react("✅") مختصرات مفيدة
+- أجب بالعربية مع الكود في بلوك \`\`\`javascript`
   },
   reviewer: {
     name: "المراجع", model: "openai", icon: "✅", color: "#6ee7b7",
-    systemPrompt: `أنت مراجع كود سريع لبوتات GoatBot فيسبوك.
-قواعد:
-- أجب بالعربية في 3-5 أسطر
-- حكم واحد نهائي: ✅ صح أو ❌ خطأ مع السبب
-- اذكر أي مشاكل محتملة
-- لا تكرر الكود`
+    systemPrompt: `أنت المراجع النهائي في فريق WHITE V3 (GoatBot — فيسبوك Messenger).
+
+مهمتك: راجع الكود الذي كتبه المطور وأعطِ حكماً نهائياً واضحاً.
+
+=== ما تتحقق منه ===
+1. هل الكود متوافق مع قالب GoatBot؟ (module.exports.config + module.exports.onStart)
+2. هل hasPermssion صحيح؟ (0/1/2/3 — لاحظ الإملاء الخاطئ المقصود: hasPermssion لا hasPermission)
+3. هل هناك أخطاء syntax واضحة؟
+4. هل يعالج الأخطاء بـ try/catch؟
+5. هل سيعمل دون مكتبات خارجية غير مدرجة في dependencies؟
+6. هل الـ async/await مستخدم بشكل صحيح؟
+
+=== صيغة الرد (إلزامية) ===
+**الحكم:** ✅ جاهز للتطبيق  أو  ⚠️ يحتاج تعديل  أو  ❌ لا يعمل
+**السبب:** جملة أو جملتان
+**إن وجد مشكلة:** اذكر السطر/المشكلة بالضبط وكيف تُصلحها
+**ملاحظة للمستخدم:** نصيحة واحدة مفيدة (اختياري)
+
+أجب بالعربية، لا تكرر الكود كاملاً.`
   },
   guide: {
     name: "المرشد", model: "openai", icon: "📚", color: "#fbbf24",
@@ -314,41 +361,81 @@ const AGENTS = {
 // ─── Multi-Agent Pipeline ──────────────────────────────────────────────────────
 async function runMultiAgentPipeline(userRequest, fileContexts, history, autoCtx) {
   const steps = [];
-  const ctxStr = [
-    autoCtx ? `=== السياق التلقائي للبوت ===\n${autoCtx}` : "",
-    ...(fileContexts || []).map(f => `\n--- ملف: ${f.path} ---\n${f.content}`)
-  ].filter(Boolean).join("\n\n");
 
-  const baseHistory = [
-    ...history.slice(-6),
-    { role: "user", content: userRequest + (ctxStr ? `\n\n${ctxStr}` : "") }
-  ];
+  // Build rich context string
+  const ctxParts = [];
+  if (autoCtx) ctxParts.push(`=== معلومات البوت الحالية ===\n${autoCtx}`);
+  if (fileContexts && fileContexts.length) {
+    ctxParts.push("=== الملفات المرفقة ===");
+    for (const f of fileContexts) {
+      // Truncate very large files to avoid token overflow
+      const content = f.content.length > 4000
+        ? f.content.substring(0, 4000) + `\n... [مقتطع — ${f.content.length} حرف إجمالاً]`
+        : f.content;
+      ctxParts.push(`--- ${f.path} ---\n${content}`);
+    }
+  }
+  const ctxStr = ctxParts.join("\n\n");
+  const userMsgWithCtx = userRequest + (ctxStr ? `\n\n${ctxStr}` : "");
 
-  // Step 1: Guide (for non-programmers) + Analyst
+  // Keep last 4 history pairs to avoid bloat
+  const recentHistory = history.slice(-8);
+
+  // ── STEP 1: Analyst ──────────────────────────────────────────────────────────
   const analystMsgs = [
     { role: "system", content: AGENTS.analyst.systemPrompt },
-    ...baseHistory
+    ...recentHistory,
+    { role: "user", content: userMsgWithCtx }
   ];
   const analystReply = await callAI(AGENTS.analyst.model, analystMsgs);
-  steps.push({ agent: "analyst", name: AGENTS.analyst.name, icon: AGENTS.analyst.icon, color: AGENTS.analyst.color, reply: analystReply });
+  steps.push({
+    agent: "analyst", name: AGENTS.analyst.name,
+    icon: AGENTS.analyst.icon, color: AGENTS.analyst.color,
+    reply: analystReply
+  });
 
-  // Step 2: Implementer
+  // ── STEP 2: Implementer ──────────────────────────────────────────────────────
+  // Gets original request + context + analyst plan
   const implMsgs = [
     { role: "system", content: AGENTS.implementer.systemPrompt },
-    ...baseHistory,
-    { role: "assistant", content: `[المحلل]: ${analystReply}` },
-    { role: "user", content: "بناءً على التحليل، اكتب الكود الكامل أو التعديلات اللازمة." }
+    ...recentHistory,
+    { role: "user", content: userMsgWithCtx },
+    {
+      role: "assistant",
+      content: `[🔍 المحلل — الخطة]:\n${analystReply}`
+    },
+    {
+      role: "user",
+      content: "نفّذ الخطة: اكتب الكود الكامل والجاهز للنسخ في ملف GoatBot. إذا كان التعديل على ملف موجود اكتب النسخة الكاملة المعدّلة منه."
+    }
   ];
   const implReply = await callAI(AGENTS.implementer.model, implMsgs);
-  steps.push({ agent: "implementer", name: AGENTS.implementer.name, icon: AGENTS.implementer.icon, color: AGENTS.implementer.color, reply: implReply });
+  steps.push({
+    agent: "implementer", name: AGENTS.implementer.name,
+    icon: AGENTS.implementer.icon, color: AGENTS.implementer.color,
+    reply: implReply
+  });
 
-  // Step 3: Reviewer
+  // ── STEP 3: Reviewer ─────────────────────────────────────────────────────────
+  // Only gets the essentials — avoids huge prompts
   const reviewMsgs = [
     { role: "system", content: AGENTS.reviewer.systemPrompt },
-    { role: "user", content: `الطلب: ${userRequest}\nالتحليل:\n${analystReply}\nالكود:\n${implReply}\nهل الكود صحيح؟` }
+    {
+      role: "user",
+      content: [
+        `**الطلب الأصلي:** ${userRequest}`,
+        `\n**تحليل المحلل:**\n${analystReply.substring(0, 800)}`,
+        `\n**الكود المكتوب:**\n${implReply.substring(0, 2500)}`,
+        "\nراجع الكود وأعطِ حكمك النهائي."
+      ].join("\n")
+    }
   ];
   const reviewReply = await callAI(AGENTS.reviewer.model, reviewMsgs);
-  steps.push({ agent: "reviewer", name: AGENTS.reviewer.name, icon: AGENTS.reviewer.icon, color: AGENTS.reviewer.color, reply: reviewReply });
+  steps.push({
+    agent: "reviewer", name: AGENTS.reviewer.name,
+    icon: AGENTS.reviewer.icon, color: AGENTS.reviewer.color,
+    reply: reviewReply
+  });
 
   return steps;
 }

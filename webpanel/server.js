@@ -212,6 +212,7 @@ body{background:var(--bg);color:var(--text);font-family:'Cairo',sans-serif;min-h
   min-height:100vh;position:fixed;top:0;right:0;display:flex;flex-direction:column;
   padding:0;z-index:100;
   box-shadow:-4px 0 20px rgba(0,0,0,.4);
+  transition:right .3s cubic-bezier(.4,0,.2,1);
 }
 .sidebar-top{padding:24px 18px 20px;border-bottom:1px solid var(--border)}
 .brand{display:flex;align-items:center;gap:10px}
@@ -251,7 +252,23 @@ body{background:var(--bg);color:var(--text);font-family:'Cairo',sans-serif;min-h
 .sidebar-bottom a:hover{background:var(--red-bg)}
 
 /* ── MAIN ── */
-.main{margin-right:var(--sidebar);padding:28px 32px;min-height:100vh}
+.main{margin-right:var(--sidebar);padding:28px 32px;min-height:100vh;transition:margin-right .3s cubic-bezier(.4,0,.2,1)}
+
+/* ── SIDEBAR COLLAPSED (desktop) ── */
+body.sb-collapsed .sidebar{right:calc(-1 * var(--sidebar) - 2px)}
+body.sb-collapsed .main{margin-right:0}
+body.sb-collapsed .sb-reopen{display:flex!important}
+
+/* ── SIDEBAR REOPEN TAB ── */
+.sb-reopen{
+  display:none;position:fixed;top:50%;right:0;transform:translateY(-50%);
+  z-index:99;background:var(--bg2);border:1px solid var(--border);
+  border-left:none;border-radius:8px 0 0 8px;
+  padding:14px 8px;flex-direction:column;align-items:center;gap:6px;
+  cursor:pointer;color:var(--text2);transition:all .2s;
+  box-shadow:-4px 0 16px rgba(0,0,0,.3);
+}
+.sb-reopen:hover{background:var(--bg4);color:var(--text)}
 .page-header{margin-bottom:28px}
 .page-title{font-size:1.5rem;font-weight:700;color:var(--text)}
 .page-sub{font-size:.85rem;color:var(--text3);margin-top:4px}
@@ -453,13 +470,13 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
   .sidebar{
-    position:fixed;top:0;right:-260px;width:260px;
-    transition:right .3s cubic-bezier(.4,0,.2,1);z-index:160;
+    right:calc(-1 * var(--sidebar) - 2px) !important;
+    width:260px;z-index:160;
   }
-  .sidebar.open{right:0}
+  .sidebar.open{right:0 !important}
   .topbar{display:flex}
   .mobile-nav{display:flex}
-  .main{margin-right:0;padding:72px 14px 80px}
+  .main{margin-right:0 !important;padding:72px 14px 80px;transition:none}
   .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .control-panel{grid-template-columns:repeat(2,1fr)}
   .two-col{grid-template-columns:1fr !important}
@@ -473,6 +490,11 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
   .log-box{max-height:65vh;font-size:.72rem}
   .table{font-size:.82rem}
   .table th,.table td{padding:8px 10px}
+  /* hide desktop reopen tab on mobile */
+  .sb-reopen{display:none!important}
+  /* hide sb-collapsed effect on mobile */
+  body.sb-collapsed .sidebar{right:calc(-1 * var(--sidebar) - 2px)!important}
+  body.sb-collapsed .main{margin-right:0!important}
 }
 @media(max-width:480px){
   .stats-grid{grid-template-columns:repeat(2,1fr)}
@@ -498,6 +520,12 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
 
 <!-- Sidebar Overlay (mobile) -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar Reopen Tab (desktop, shown when sidebar is collapsed) -->
+<button class="sb-reopen" onclick="toggleSidebar()" title="إظهار القائمة" aria-label="إظهار القائمة">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+  <span style="font-size:.58rem;writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.5px;color:var(--text3)">القائمة</span>
+</button>
 
 <div class="sidebar" id="mainSidebar">
   <div class="sidebar-top">
@@ -570,17 +598,42 @@ async function api(url, data, method='POST'){
     return await r.json();
   } catch(e){ return {error: e.message}; }
 }
+function _isMobile(){ return window.innerWidth <= 768; }
 function toggleSidebar(){
-  const s = document.getElementById('mainSidebar');
-  const o = document.getElementById('sidebarOverlay');
-  s.classList.toggle('open');
-  o.classList.toggle('active');
+  if(_isMobile()){
+    const s = document.getElementById('mainSidebar');
+    const o = document.getElementById('sidebarOverlay');
+    const opening = !s.classList.contains('open');
+    s.classList.toggle('open', opening);
+    o.classList.toggle('active', opening);
+  } else {
+    const collapsed = document.body.classList.toggle('sb-collapsed');
+    try{ localStorage.setItem('wv3_sb', collapsed ? '1' : '0'); }catch(_){}
+  }
 }
 function closeSidebar(){
-  document.getElementById('mainSidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('active');
+  if(_isMobile()){
+    document.getElementById('mainSidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  }
 }
+// Restore desktop sidebar state from localStorage
+(function(){
+  try{
+    if(!_isMobile() && localStorage.getItem('wv3_sb') === '1'){
+      document.body.classList.add('sb-collapsed');
+    }
+  }catch(_){}
+})();
+// Close mobile sidebar on nav click
 document.querySelectorAll('.nav-item').forEach(a => a.addEventListener('click', closeSidebar));
+// Close mobile sidebar on resize to desktop
+window.addEventListener('resize', function(){
+  if(!_isMobile()){
+    document.getElementById('mainSidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  }
+});
 </script>
 </body>
 </html>`;
