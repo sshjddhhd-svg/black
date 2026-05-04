@@ -59,6 +59,52 @@ process.stderr.write = function(chunk, encoding, cb) {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Notification Ring (errors / warnings) ────────────────────────────────────
+const NOTIF_MAX   = 80;
+const _notifRing  = [];   // { id, ts, level:'error'|'warn'|'info', msg }
+let   _notifSeq   = 0;
+const _notifSSE   = new Set();
+
+function _pushNotif(level, msg) {
+  const n = { id: ++_notifSeq, ts: Date.now(), level, msg: String(msg).substring(0, 280) };
+  if (_notifRing.length >= NOTIF_MAX) _notifRing.shift();
+  _notifRing.push(n);
+  for (const res of _notifSSE) {
+    try { res.write(`data: ${JSON.stringify(n)}\n\n`); } catch(_) { _notifSSE.delete(res); }
+  }
+}
+
+// Hook into log push to auto-detect errors
+const _origPushForNotif = _pushLogLine;
+global._plfn = function(raw) {
+  _origPushForNotif(raw);
+  const s = String(raw);
+  if (/❌|ERROR|error\b/.test(s))    _pushNotif('error', s.replace(/\x1b\[[0-9;]*m/g,'').trim().substring(0,200));
+  else if (/⚠️|WARN/.test(s))        _pushNotif('warn',  s.replace(/\x1b\[[0-9;]*m/g,'').trim().substring(0,200));
+};
+// replace pushLogLine reference in stdout/stderr wraps — they already captured it by value so just expose
+global._panelPushNotif = _pushNotif;
+
+// ─── Per-Thread Message Feed ──────────────────────────────────────────────────
+const _msgFeed    = {};   // threadID -> [{ts,senderID,body}]
+const MSG_FEED_SZ = 50;
+const _feedSSE    = {};   // threadID -> Set<res>
+
+function _trackMsg(threadID, senderID, body) {
+  const tid = String(threadID);
+  if (!_msgFeed[tid]) _msgFeed[tid] = [];
+  const e = { ts: Date.now(), senderID: String(senderID||'?'), body: String(body||'').substring(0,300) };
+  _msgFeed[tid].push(e);
+  if (_msgFeed[tid].length > MSG_FEED_SZ) _msgFeed[tid].shift();
+  if (_feedSSE[tid]) {
+    for (const res of _feedSSE[tid]) {
+      try { res.write(`data: ${JSON.stringify(e)}\n\n`); } catch(_) { _feedSSE[tid].delete(res); }
+    }
+  }
+}
+global._panelTrackMsg = _trackMsg;
+// ─────────────────────────────────────────────────────────────────────────────
+
 const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -159,15 +205,19 @@ function layout(title, body, activeTab = "") {
     ["commands", "M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", "الأوامر"],
     ["accounts", "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", "الحسابات"],
     ["logs",     "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", "السجلات"],
+    ["groups",   "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z", "الغروبات"],
     ["send",     "M12 19l9 2-9-18-9 18 9-2zm0 0v-8", "إرسال رسالة"],
     ["devhub",   "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z", "مركز التطوير"],
     ["devhub/guide", "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253", "دليل المطور"],
   ];
 
   const nav = tabs.map(([id, icon, label]) => `
-    <a href="/${id}" class="nav-item ${activeTab === id ? "active" : ""}">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${icon}"/></svg>
-      <span>${label}</span>
+    <a href="/${id}" class="nav-item ${activeTab === id ? "active" : ""}" onclick="closeSidebar()">
+      <span class="nav-icon-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${icon}"/></svg>
+      </span>
+      <span class="nav-label">${label}</span>
+      ${activeTab === id ? '<span class="nav-pip"></span>' : ""}
     </a>`).join("");
 
   const isBotOnline = !!global.GoatBot?.fcaApi;
@@ -176,307 +226,467 @@ function layout(title, body, activeTab = "") {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>WHITE V3 — ${title}</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#070b14;
-  --bg2:#0d1321;
-  --bg3:#111827;
-  --bg4:#1a2235;
-  --border:#1e2d45;
-  --border2:#253350;
+  --bg:#07090f;
+  --bg2:#0c1120;
+  --bg3:#101726;
+  --bg4:#16202e;
+  --bg5:#1c2a3a;
+  --border:rgba(255,255,255,.07);
+  --border2:rgba(255,255,255,.12);
   --accent:#3b82f6;
   --accent2:#60a5fa;
-  --accent-glow:rgba(59,130,246,.25);
+  --accent3:#93c5fd;
+  --accent-glow:rgba(59,130,246,.2);
   --green:#10b981;
   --green-bg:rgba(16,185,129,.1);
   --yellow:#f59e0b;
   --yellow-bg:rgba(245,158,11,.1);
   --red:#ef4444;
   --red-bg:rgba(239,68,68,.1);
-  --text:#f1f5f9;
-  --text2:#94a3b8;
-  --text3:#64748b;
+  --text:#f0f4f8;
+  --text2:#8fa3b8;
+  --text3:#4a6278;
   --purple:#8b5cf6;
   --cyan:#06b6d4;
-  --sidebar:240px;
+  --sidebar-w:268px;
+  --topbar-h:60px;
+  --radius-lg:18px;
+  --radius-md:12px;
+  --radius-sm:8px;
+  --shadow-lg:0 24px 48px rgba(0,0,0,.5),0 8px 16px rgba(0,0,0,.3);
+  --shadow-md:0 8px 24px rgba(0,0,0,.4);
+  --shadow-sm:0 2px 8px rgba(0,0,0,.3);
 }
-body{background:var(--bg);color:var(--text);font-family:'Cairo',sans-serif;min-height:100vh;overflow-x:hidden}
 
-/* ── SIDEBAR ── */
-.sidebar{
-  width:var(--sidebar);background:var(--bg2);border-left:1px solid var(--border);
-  min-height:100vh;position:fixed;top:0;right:0;display:flex;flex-direction:column;
-  padding:0;z-index:100;
-  box-shadow:-4px 0 20px rgba(0,0,0,.4);
-  transition:right .3s cubic-bezier(.4,0,.2,1);
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);font-family:'Cairo',sans-serif;
+  min-height:100vh;overflow-x:hidden;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 80% -10%, rgba(59,130,246,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 10% 90%, rgba(139,92,246,.04) 0%, transparent 50%);
 }
-.sidebar-top{padding:24px 18px 20px;border-bottom:1px solid var(--border)}
-.brand{display:flex;align-items:center;gap:10px}
-.brand-logo{
-  width:40px;height:40px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);
+
+/* ════════════════════════════════════
+   TOPBAR
+════════════════════════════════════ */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--topbar-h);
+  background:rgba(7,9,15,.85);backdrop-filter:blur(20px) saturate(1.5);
+  -webkit-backdrop-filter:blur(20px) saturate(1.5);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;z-index:300;
+}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.topbar-logo{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,#3b82f6,#8b5cf6);
   border-radius:10px;display:flex;align-items:center;justify-content:center;
-  font-size:1.2rem;box-shadow:0 4px 15px rgba(59,130,246,.4);
+  font-size:1rem;box-shadow:0 4px 12px rgba(59,130,246,.35);flex-shrink:0;
 }
-.brand-text{font-size:1.05rem;font-weight:800;color:var(--text);letter-spacing:.5px}
-.brand-sub{font-size:.72rem;color:var(--text3);margin-top:1px}
-.bot-status{
-  margin-top:14px;display:flex;align-items:center;gap:8px;
-  padding:8px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)
+.topbar-name{
+  font-size:.95rem;font-weight:800;
+  background:linear-gradient(90deg,#60a5fa,#a78bfa);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  letter-spacing:.3px;
 }
-.status-dot{
-  width:8px;height:8px;border-radius:50%;
+.topbar-page{font-size:.78rem;color:var(--text3);font-weight:500}
+.topbar-divider{width:1px;height:20px;background:var(--border);margin:0 2px}
+
+.menu-btn{
+  width:38px;height:38px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text2);transition:all .2s;flex-shrink:0;
+}
+.menu-btn:hover{background:var(--bg4);color:var(--text);border-color:var(--border2)}
+.menu-btn.active{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.4);color:var(--accent2)}
+.menu-btn svg{width:18px;height:18px}
+
+.topbar-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
   background:${isBotOnline ? "var(--green)" : "var(--red)"};
-  box-shadow:0 0 8px ${isBotOnline ? "var(--green)" : "var(--red)"};
+  box-shadow:0 0 10px ${isBotOnline ? "rgba(16,185,129,.6)" : "rgba(239,68,68,.6)"};
   animation:pulse 2s infinite;
 }
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-.status-label{font-size:.8rem;color:var(--text2)}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(.85)}}
 
-.nav-section{padding:16px 12px 8px;font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+/* ════════════════════════════════════
+   SIDEBAR OVERLAY BACKDROP
+════════════════════════════════════ */
+.sb-backdrop{
+  position:fixed;inset:0;z-index:390;
+  background:rgba(0,0,0,.65);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  opacity:0;pointer-events:none;
+  transition:opacity .3s cubic-bezier(.4,0,.2,1);
+}
+.sb-backdrop.show{opacity:1;pointer-events:all}
+
+/* ════════════════════════════════════
+   SIDEBAR  — always overlay, never pushes content
+════════════════════════════════════ */
+.sidebar{
+  position:fixed;top:0;right:0;bottom:0;
+  width:var(--sidebar-w);
+  background:rgba(10,15,25,.97);
+  backdrop-filter:blur(30px) saturate(1.8);
+  -webkit-backdrop-filter:blur(30px) saturate(1.8);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+  z-index:400;
+  transform:translateX(100%);
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+  box-shadow:var(--shadow-lg);
+  overflow:hidden;
+}
+.sidebar.open{transform:translateX(0)}
+
+.sidebar-head{
+  padding:20px 18px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.sb-brand{display:flex;align-items:center;gap:11px}
+.sb-logo{
+  width:42px;height:42px;
+  background:linear-gradient(135deg,#3b82f6,#8b5cf6);
+  border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;box-shadow:0 6px 18px rgba(59,130,246,.4);flex-shrink:0;
+}
+.sb-title{font-size:1.05rem;font-weight:800;color:var(--text);letter-spacing:.3px}
+.sb-ver{font-size:.68rem;color:var(--text3);margin-top:1px;font-weight:500}
+.sb-close{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg4);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text3);transition:all .2s;flex-shrink:0;
+}
+.sb-close:hover{background:var(--red-bg);border-color:rgba(239,68,68,.3);color:var(--red)}
+
+.sb-status{
+  margin:14px 18px 0;
+  display:flex;align-items:center;gap:8px;
+  padding:9px 13px;
+  background:${isBotOnline ? "rgba(16,185,129,.08)" : "rgba(239,68,68,.08)"};
+  border:1px solid ${isBotOnline ? "rgba(16,185,129,.2)" : "rgba(239,68,68,.2)"};
+  border-radius:10px;
+}
+.sb-status-dot{
+  width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  background:${isBotOnline ? "var(--green)" : "var(--red)"};
+  box-shadow:0 0 8px ${isBotOnline ? "rgba(16,185,129,.6)" : "rgba(239,68,68,.6)"};
+  animation:pulse 2s infinite;
+}
+.sb-status-txt{font-size:.8rem;font-weight:600;color:${isBotOnline ? "var(--green)" : "var(--red)"};}
+
+.sb-section-lbl{
+  padding:18px 18px 6px;
+  font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:1.4px;font-weight:700;
+  flex-shrink:0;
+}
+
+.sb-nav{flex:1;overflow-y:auto;padding:4px 10px;overscroll-behavior:contain}
+.sb-nav::-webkit-scrollbar{width:0}
+
 .nav-item{
-  display:flex;align-items:center;gap:10px;padding:9px 16px;margin:2px 8px;
-  border-radius:8px;color:var(--text2);text-decoration:none;font-size:.88rem;
-  transition:all .2s;cursor:pointer;
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;margin-bottom:2px;
+  border-radius:var(--radius-sm);
+  color:var(--text2);text-decoration:none;font-size:.88rem;font-weight:500;
+  transition:all .2s cubic-bezier(.4,0,.2,1);cursor:pointer;position:relative;
+  overflow:hidden;
 }
-.nav-item:hover{background:var(--bg4);color:var(--text)}
-.nav-item.active{background:linear-gradient(90deg,rgba(59,130,246,.2),rgba(59,130,246,.05));color:var(--accent2);border-right:2px solid var(--accent)}
-.nav-item svg{flex-shrink:0;opacity:.7}
-.nav-item.active svg{opacity:1}
-
-.sidebar-bottom{margin-top:auto;padding:16px 12px;border-top:1px solid var(--border)}
-.sidebar-bottom a{display:flex;align-items:center;gap:10px;padding:9px 16px;border-radius:8px;color:var(--red);text-decoration:none;font-size:.88rem;transition:all .2s}
-.sidebar-bottom a:hover{background:var(--red-bg)}
-
-/* ── MAIN ── */
-.main{margin-right:var(--sidebar);padding:28px 32px;min-height:100vh;transition:margin-right .3s cubic-bezier(.4,0,.2,1)}
-
-/* ── SIDEBAR COLLAPSED (desktop) ── */
-body.sb-collapsed .sidebar{right:calc(-1 * var(--sidebar) - 2px)}
-body.sb-collapsed .main{margin-right:0}
-body.sb-collapsed .sb-reopen{display:flex!important}
-
-/* ── SIDEBAR REOPEN TAB ── */
-.sb-reopen{
-  display:none;position:fixed;top:50%;right:0;transform:translateY(-50%);
-  z-index:99;background:var(--bg2);border:1px solid var(--border);
-  border-left:none;border-radius:8px 0 0 8px;
-  padding:14px 8px;flex-direction:column;align-items:center;gap:6px;
-  cursor:pointer;color:var(--text2);transition:all .2s;
-  box-shadow:-4px 0 16px rgba(0,0,0,.3);
+.nav-item::before{
+  content:'';position:absolute;inset:0;border-radius:var(--radius-sm);
+  background:linear-gradient(90deg,rgba(59,130,246,.12),rgba(59,130,246,.03));
+  opacity:0;transition:opacity .2s;
 }
-.sb-reopen:hover{background:var(--bg4);color:var(--text)}
+.nav-item:hover{color:var(--text);background:var(--bg4)}
+.nav-item:hover::before{opacity:.5}
+.nav-item.active{color:var(--accent2);background:rgba(59,130,246,.1);font-weight:600}
+.nav-item.active::before{opacity:1}
+.nav-icon-wrap{
+  width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  background:var(--bg5);flex-shrink:0;transition:all .2s;
+}
+.nav-item:hover .nav-icon-wrap{background:var(--bg4)}
+.nav-item.active .nav-icon-wrap{background:rgba(59,130,246,.2);box-shadow:0 0 12px rgba(59,130,246,.2)}
+.nav-item svg{opacity:.7;transition:opacity .2s}
+.nav-item.active svg,.nav-item:hover svg{opacity:1}
+.nav-label{flex:1;white-space:nowrap}
+.nav-pip{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 8px var(--accent);flex-shrink:0;
+}
+
+.sb-footer{
+  padding:14px 10px;border-top:1px solid var(--border);flex-shrink:0;
+}
+.sb-logout{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);
+  color:var(--text3);text-decoration:none;font-size:.86rem;font-weight:500;
+  transition:all .2s;
+}
+.sb-logout:hover{background:var(--red-bg);color:var(--red)}
+.sb-logout .nav-icon-wrap{background:var(--bg5)}
+.sb-logout:hover .nav-icon-wrap{background:rgba(239,68,68,.15)}
+
+/* ════════════════════════════════════
+   MAIN CONTENT — always full width
+════════════════════════════════════ */
+.main{
+  padding:calc(var(--topbar-h) + 24px) 28px 40px;
+  min-height:100vh;max-width:1200px;margin:0 auto;
+}
+
+/* ════════════════════════════════════
+   PAGE HEADER
+════════════════════════════════════ */
 .page-header{margin-bottom:28px}
-.page-title{font-size:1.5rem;font-weight:700;color:var(--text)}
-.page-sub{font-size:.85rem;color:var(--text3);margin-top:4px}
+.page-title{font-size:1.45rem;font-weight:800;color:var(--text);letter-spacing:-.3px}
+.page-sub{font-size:.84rem;color:var(--text3);margin-top:5px;font-weight:400}
 
-/* ── CARDS ── */
+/* ════════════════════════════════════
+   CARDS
+════════════════════════════════════ */
 .card{
-  background:var(--bg2);border:1px solid var(--border);border-radius:14px;
-  padding:22px;margin-bottom:20px;transition:border-color .2s;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:22px;margin-bottom:18px;
+  transition:border-color .25s,box-shadow .25s;
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
 }
 .card:hover{border-color:var(--border2)}
-.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-.card-title{font-size:.95rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
-.card-title-icon{
-  width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;
-}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px}
+.card-title{font-size:.93rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
 
-/* ── STAT BOXES ── */
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+/* ════════════════════════════════════
+   STATS
+════════════════════════════════════ */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
 .stat{
-  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
-  padding:18px;position:relative;overflow:hidden;transition:all .25s;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-md);padding:18px;
+  position:relative;overflow:hidden;transition:all .25s;
 }
-.stat:hover{border-color:var(--border2);transform:translateY(-2px)}
+.stat:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:var(--shadow-md)}
 .stat-glow{
-  position:absolute;top:-30px;right:-30px;width:80px;height:80px;
-  border-radius:50%;opacity:.12;filter:blur(20px);
+  position:absolute;top:-20px;right:-20px;width:70px;height:70px;
+  border-radius:50%;opacity:.15;filter:blur(18px);pointer-events:none;
 }
-.stat-icon{font-size:1.4rem;margin-bottom:10px}
-.stat-val{font-size:1.7rem;font-weight:800;color:var(--text);line-height:1}
-.stat-lbl{font-size:.75rem;color:var(--text3);margin-top:6px}
+.stat-icon{font-size:1.3rem;margin-bottom:10px}
+.stat-val{font-size:1.65rem;font-weight:900;color:var(--text);line-height:1;letter-spacing:-.5px}
+.stat-lbl{font-size:.72rem;color:var(--text3);margin-top:6px;font-weight:500}
 .stat-blue .stat-glow{background:#3b82f6}
 .stat-green .stat-glow{background:#10b981}
 .stat-purple .stat-glow{background:#8b5cf6}
 .stat-cyan .stat-glow{background:#06b6d4}
 
-/* ── BADGES ── */
-.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600}
-.badge-green{background:var(--green-bg);color:var(--green);border:1px solid rgba(16,185,129,.3)}
-.badge-red{background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.3)}
-.badge-yellow{background:var(--yellow-bg);color:var(--yellow);border:1px solid rgba(245,158,11,.3)}
-.badge-blue{background:rgba(59,130,246,.1);color:var(--accent2);border:1px solid rgba(59,130,246,.3)}
+/* ════════════════════════════════════
+   BADGES
+════════════════════════════════════ */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.76rem;font-weight:700}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+.badge-red{background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.badge-blue{background:rgba(59,130,246,.1);color:var(--accent2);border:1px solid rgba(59,130,246,.25)}
 
-/* ── TABLE ── */
+/* ════════════════════════════════════
+   TABLE
+════════════════════════════════════ */
 .table{width:100%;border-collapse:collapse}
-.table th{color:var(--text3);font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:right;border-bottom:1px solid var(--border);font-weight:600}
-.table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:.88rem;color:var(--text)}
+.table th{color:var(--text3);font-size:.74rem;text-transform:uppercase;letter-spacing:.6px;padding:10px 14px;text-align:right;border-bottom:1px solid var(--border);font-weight:700}
+.table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:.87rem;color:var(--text);line-height:1.5}
 .table tr:last-child td{border-bottom:none}
-.table tr:hover td{background:var(--bg3)}
+.table tr:hover td{background:rgba(255,255,255,.02)}
 .table td:first-child,.table th:first-child{text-align:right}
 
-/* ── FORMS ── */
+/* ════════════════════════════════════
+   FORMS
+════════════════════════════════════ */
 .form-group{margin-bottom:16px}
-.form-label{display:block;font-size:.82rem;color:var(--text2);margin-bottom:6px;font-weight:600}
+.form-label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:7px;font-weight:600;letter-spacing:.2px}
 .form-control{
   width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);
-  border-radius:8px;padding:9px 12px;font-size:.88rem;font-family:'Cairo',sans-serif;
-  transition:all .2s;outline:none;
+  border-radius:var(--radius-sm);padding:10px 13px;font-size:.87rem;font-family:'Cairo',sans-serif;
+  transition:all .2s;outline:none;line-height:1.5;
 }
-.form-control:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.form-control:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow),0 0 0 1px var(--accent)}
 .form-control::placeholder{color:var(--text3)}
 textarea.form-control{resize:vertical;line-height:1.6}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 
-/* ── BUTTONS ── */
+/* ════════════════════════════════════
+   BUTTONS
+════════════════════════════════════ */
 .btn{
-  display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;
-  font-size:.86rem;font-weight:600;font-family:'Cairo',sans-serif;cursor:pointer;
-  border:none;transition:all .2s;text-decoration:none;
+  display:inline-flex;align-items:center;gap:6px;
+  padding:9px 18px;border-radius:var(--radius-sm);
+  font-size:.85rem;font-weight:700;font-family:'Cairo',sans-serif;
+  cursor:pointer;border:none;transition:all .2s cubic-bezier(.4,0,.2,1);
+  text-decoration:none;white-space:nowrap;letter-spacing:.1px;
 }
 .btn-primary{background:var(--accent);color:#fff}
-.btn-primary:hover{background:#2563eb;transform:translateY(-1px);box-shadow:0 4px 12px rgba(59,130,246,.4)}
+.btn-primary:hover{background:#2563eb;transform:translateY(-1px);box-shadow:0 4px 16px rgba(59,130,246,.45)}
 .btn-success{background:var(--green);color:#fff}
-.btn-success:hover{background:#059669;transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,185,129,.4)}
+.btn-success:hover{background:#059669;transform:translateY(-1px);box-shadow:0 4px 16px rgba(16,185,129,.4)}
 .btn-danger{background:var(--red);color:#fff}
-.btn-danger:hover{background:#dc2626;transform:translateY(-1px);box-shadow:0 4px 12px rgba(239,68,68,.4)}
+.btn-danger:hover{background:#dc2626;transform:translateY(-1px);box-shadow:0 4px 16px rgba(239,68,68,.4)}
 .btn-outline{background:transparent;color:var(--text2);border:1px solid var(--border)}
-.btn-outline:hover{background:var(--bg4);color:var(--text)}
-.btn-sm{padding:6px 14px;font-size:.8rem}
-.btn-icon{width:34px;height:34px;padding:0;justify-content:center;border-radius:8px}
+.btn-outline:hover{background:var(--bg4);color:var(--text);border-color:var(--border2)}
+.btn-sm{padding:6px 13px;font-size:.79rem}
+.btn-icon{width:34px;height:34px;padding:0;justify-content:center;border-radius:var(--radius-sm)}
 .btn-purple{background:var(--purple);color:#fff}
-.btn-purple:hover{background:#7c3aed}
+.btn-purple:hover{background:#7c3aed;transform:translateY(-1px);box-shadow:0 4px 16px rgba(139,92,246,.4)}
 .btn-yellow{background:var(--yellow);color:#000}
-.btn-yellow:hover{background:#d97706}
-.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.btn-yellow:hover{background:#d97706;transform:translateY(-1px)}
+.btn-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}
 
-/* ── LOGS ── */
+/* ════════════════════════════════════
+   LOGS
+════════════════════════════════════ */
 .log-box{
-  background:#030712;border:1px solid var(--border);border-radius:10px;
+  background:#030712;border:1px solid var(--border);border-radius:var(--radius-md);
   padding:16px;font-family:'Courier New',monospace;font-size:.76rem;
-  max-height:520px;overflow-y:auto;white-space:pre-wrap;line-height:1.7;
+  max-height:520px;overflow-y:auto;white-space:pre-wrap;line-height:1.75;
 }
-.log-box::-webkit-scrollbar{width:6px}
+.log-box::-webkit-scrollbar{width:5px}
 .log-box::-webkit-scrollbar-track{background:transparent}
-.log-box::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:3px}
+.log-box::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
 .log-error{color:#f87171}
 .log-warn{color:#fbbf24}
 .log-ok{color:#34d399}
 .log-info{color:#60a5fa}
-.log-dim{color:#64748b}
+.log-dim{color:#4a6278}
 
-/* ── BOT CONTROLS ── */
-.control-panel{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;
-}
+/* ════════════════════════════════════
+   BOT CONTROLS
+════════════════════════════════════ */
+.control-panel{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .control-btn{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:8px;padding:22px;border-radius:12px;border:1px solid var(--border);
-  cursor:pointer;transition:all .25s;text-decoration:none;font-family:'Cairo',sans-serif;
-  background:var(--bg3);color:var(--text2);font-size:.88rem;font-weight:600;
+  gap:10px;padding:22px 16px;border-radius:var(--radius-md);border:1px solid var(--border);
+  cursor:pointer;transition:all .25s cubic-bezier(.4,0,.2,1);text-decoration:none;
+  font-family:'Cairo',sans-serif;background:var(--bg3);color:var(--text2);
+  font-size:.86rem;font-weight:600;position:relative;overflow:hidden;
 }
+.control-btn::after{
+  content:'';position:absolute;inset:0;opacity:0;
+  background:radial-gradient(circle at center,rgba(255,255,255,.06),transparent 70%);
+  transition:opacity .2s;
+}
+.control-btn:hover::after{opacity:1}
 .control-btn:hover{transform:translateY(-3px)}
-.control-btn .icon{font-size:1.8rem}
-.control-btn.green{border-color:rgba(16,185,129,.3);color:var(--green)}
-.control-btn.green:hover{background:var(--green-bg);box-shadow:0 6px 20px rgba(16,185,129,.2)}
-.control-btn.red{border-color:rgba(239,68,68,.3);color:var(--red)}
-.control-btn.red:hover{background:var(--red-bg);box-shadow:0 6px 20px rgba(239,68,68,.2)}
-.control-btn.yellow{border-color:rgba(245,158,11,.3);color:var(--yellow)}
-.control-btn.yellow:hover{background:var(--yellow-bg);box-shadow:0 6px 20px rgba(245,158,11,.2)}
-.control-btn.blue{border-color:rgba(59,130,246,.3);color:var(--accent2)}
-.control-btn.blue:hover{background:rgba(59,130,246,.1);box-shadow:0 6px 20px rgba(59,130,246,.2)}
+.control-btn .icon{font-size:1.8rem;line-height:1}
+.control-btn.green{border-color:rgba(16,185,129,.25);color:var(--green)}
+.control-btn.green:hover{background:rgba(16,185,129,.08);box-shadow:0 8px 24px rgba(16,185,129,.15)}
+.control-btn.red{border-color:rgba(239,68,68,.25);color:var(--red)}
+.control-btn.red:hover{background:rgba(239,68,68,.08);box-shadow:0 8px 24px rgba(239,68,68,.15)}
+.control-btn.yellow{border-color:rgba(245,158,11,.25);color:var(--yellow)}
+.control-btn.yellow:hover{background:rgba(245,158,11,.08);box-shadow:0 8px 24px rgba(245,158,11,.15)}
+.control-btn.blue{border-color:rgba(59,130,246,.25);color:var(--accent2)}
+.control-btn.blue:hover{background:rgba(59,130,246,.08);box-shadow:0 8px 24px rgba(59,130,246,.15)}
 
-/* ── TOAST ── */
-#toast-container{position:fixed;bottom:24px;left:24px;z-index:9999;display:flex;flex-direction:column;gap:10px}
-.toast-msg{
-  padding:12px 18px;border-radius:10px;font-size:.85rem;font-weight:600;
-  display:flex;align-items:center;gap:10px;min-width:280px;
-  animation:toastIn .3s ease;box-shadow:0 8px 24px rgba(0,0,0,.4);
+/* ════════════════════════════════════
+   TOAST
+════════════════════════════════════ */
+#toast-container{
+  position:fixed;bottom:28px;left:24px;z-index:9999;
+  display:flex;flex-direction:column;gap:9px;pointer-events:none;
 }
-.toast-success{background:linear-gradient(135deg,#064e3b,#065f46);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}
-.toast-error{background:linear-gradient(135deg,#450a0a,#7f1d1d);border:1px solid rgba(239,68,68,.3);color:#fca5a5}
-.toast-info{background:linear-gradient(135deg,#0c1a3d,#1e3a8a);border:1px solid rgba(59,130,246,.3);color:#93c5fd}
-@keyframes toastIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+.toast-msg{
+  padding:12px 18px;border-radius:12px;font-size:.84rem;font-weight:600;
+  display:flex;align-items:center;gap:10px;
+  animation:toastIn .35s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 12px 32px rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.3);
+  pointer-events:all;max-width:320px;
+}
+.toast-success{background:linear-gradient(135deg,#052e1c,#065f46);border:1px solid rgba(16,185,129,.25);color:#6ee7b7}
+.toast-error{background:linear-gradient(135deg,#3b0a0a,#7f1d1d);border:1px solid rgba(239,68,68,.25);color:#fca5a5}
+.toast-info{background:linear-gradient(135deg,#0a1630,#1e3a8a);border:1px solid rgba(59,130,246,.25);color:#93c5fd}
+@keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.9)}to{opacity:1;transform:translateY(0) scale(1)}}
 
-/* ── DIVIDER ── */
+/* ════════════════════════════════════
+   DIVIDER / TOGGLE
+════════════════════════════════════ */
 .divider{border:none;border-top:1px solid var(--border);margin:20px 0}
-
-/* ── TOGGLE ── */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border)}
 .toggle-row:last-child{border-bottom:none}
-.toggle-info{font-size:.88rem;color:var(--text)}
-.toggle-sub{font-size:.76rem;color:var(--text3);margin-top:2px}
-.toggle{position:relative;display:inline-block;width:44px;height:24px}
+.toggle-info{font-size:.88rem;color:var(--text);font-weight:500}
+.toggle-sub{font-size:.74rem;color:var(--text3);margin-top:3px}
+.toggle{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0}
 .toggle input{display:none}
 .slider{
-  position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
-  background:#374151;border-radius:24px;transition:.3s;
+  position:absolute;cursor:pointer;inset:0;
+  background:rgba(255,255,255,.1);border-radius:26px;transition:.3s;
+  border:1px solid var(--border);
 }
 .slider:before{
-  position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;
-  background:#fff;border-radius:50%;transition:.3s;
+  position:absolute;content:"";height:20px;width:20px;left:2px;bottom:2px;
+  background:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 4px rgba(0,0,0,.3);
 }
-input:checked+.slider{background:var(--accent)}
+input:checked+.slider{background:var(--accent);border-color:var(--accent)}
 input:checked+.slider:before{transform:translateX(20px)}
 
-/* ── CODE ── */
-code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-size:.82rem;font-family:'Courier New',monospace}
-
-/* ── GRADIENT TEXT ── */
-.gradient-text{background:linear-gradient(90deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-
-/* ── MOBILE TOPBAR ── */
-.topbar{
-  display:none;position:fixed;top:0;left:0;right:0;height:56px;
-  background:var(--bg2);border-bottom:1px solid var(--border);
-  align-items:center;justify-content:space-between;padding:0 16px;
-  z-index:200;box-shadow:0 2px 12px rgba(0,0,0,.4);
+/* ════════════════════════════════════
+   CODE
+════════════════════════════════════ */
+code{
+  background:rgba(59,130,246,.12);color:var(--accent3);
+  padding:2px 7px;border-radius:5px;font-size:.81rem;
+  font-family:'Courier New',monospace;border:1px solid rgba(59,130,246,.15);
 }
-.topbar-brand{display:flex;align-items:center;gap:10px}
-.topbar-logo{width:34px;height:34px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem}
-.topbar-name{font-size:1rem;font-weight:800;background:linear-gradient(90deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.topbar-status{display:flex;align-items:center;gap:6px}
-.hamburger{background:none;border:none;cursor:pointer;color:var(--text2);padding:6px;display:flex;flex-direction:column;gap:5px}
-.hamburger span{display:block;width:22px;height:2px;background:currentColor;border-radius:2px;transition:.3s}
 
-/* ── SIDEBAR OVERLAY ── */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150;backdrop-filter:blur(2px)}
-.sidebar-overlay.active{display:block}
+/* ════════════════════════════════════
+   GRADIENT TEXT / UTILS
+════════════════════════════════════ */
+.gradient-text{background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 
-/* ── MOBILE BOTTOM NAV ── */
+/* ════════════════════════════════════
+   MOBILE BOTTOM NAV
+════════════════════════════════════ */
 .mobile-nav{
-  display:none;position:fixed;bottom:0;left:0;right:0;height:62px;
-  background:var(--bg2);border-top:1px solid var(--border);
-  flex-direction:row;align-items:center;justify-content:space-around;
-  z-index:200;padding-bottom:env(safe-area-inset-bottom,0px);
-  box-shadow:0 -4px 20px rgba(0,0,0,.3);
+  display:none;position:fixed;bottom:0;left:0;right:0;
+  height:calc(60px + env(safe-area-inset-bottom,0px));
+  background:rgba(10,15,25,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--border);
+  flex-direction:row;align-items:flex-start;justify-content:space-around;
+  z-index:200;padding:8px 0 env(safe-area-inset-bottom,0px);
 }
 .mob-nav-item{
-  display:flex;flex-direction:column;align-items:center;gap:2px;
-  text-decoration:none;color:var(--text3);font-size:.62rem;font-weight:600;
-  flex:1;padding:8px 0;transition:color .2s;position:relative;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  text-decoration:none;color:var(--text3);font-size:.58rem;font-weight:700;
+  flex:1;padding:4px 0;transition:color .2s;position:relative;letter-spacing:.2px;
 }
 .mob-nav-item.active{color:var(--accent2)}
-.mob-nav-item.active::before{
-  content:'';position:absolute;top:0;left:20%;right:20%;height:2px;
-  background:var(--accent);border-radius:0 0 4px 4px;
+.mob-nav-item.active::after{
+  content:'';position:absolute;top:-8px;left:30%;right:30%;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--purple));
+  border-radius:0 0 4px 4px;
 }
-.mob-nav-item svg{width:20px;height:20px}
+.mob-nav-item svg{width:21px;height:21px;transition:transform .2s}
+.mob-nav-item.active svg{transform:scale(1.1)}
 
-/* ── RESPONSIVE ── */
+/* ════════════════════════════════════
+   RESPONSIVE
+════════════════════════════════════ */
 @media(max-width:768px){
-  .sidebar{
-    right:calc(-1 * var(--sidebar) - 2px) !important;
-    width:260px;z-index:160;
-  }
-  .sidebar.open{right:0 !important}
-  .topbar{display:flex}
+  .main{padding:calc(var(--topbar-h) + 16px) 14px calc(80px + env(safe-area-inset-bottom,0px))}
   .mobile-nav{display:flex}
-  .main{margin-right:0 !important;padding:72px 14px 80px;transition:none}
   .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .control-panel{grid-template-columns:repeat(2,1fr)}
   .two-col{grid-template-columns:1fr !important}
@@ -485,16 +695,11 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
   .btn-row{gap:8px}
   .btn{padding:8px 14px;font-size:.82rem}
   .form-grid{grid-template-columns:1fr}
-  #toast-container{left:12px;right:12px;bottom:76px}
-  .toast-msg{min-width:unset;width:100%}
+  #toast-container{left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  .toast-msg{max-width:100%}
   .log-box{max-height:65vh;font-size:.72rem}
   .table{font-size:.82rem}
   .table th,.table td{padding:8px 10px}
-  /* hide desktop reopen tab on mobile */
-  .sb-reopen{display:none!important}
-  /* hide sb-collapsed effect on mobile */
-  body.sb-collapsed .sidebar{right:calc(-1 * var(--sidebar) - 2px)!important}
-  body.sb-collapsed .main{margin-right:0!important}
 }
 @media(max-width:480px){
   .stats-grid{grid-template-columns:repeat(2,1fr)}
@@ -504,52 +709,77 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
 </head>
 <body>
 
-<!-- Mobile Top Bar -->
-<div class="topbar">
-  <div class="topbar-brand">
-    <div class="topbar-logo">⚪</div>
-    <span class="topbar-name">WHITE V3</span>
-  </div>
-  <div class="topbar-status">
-    <div class="status-dot" style="width:8px;height:8px;border-radius:50%;background:${isBotOnline ? "var(--green)" : "var(--red)"};box-shadow:0 0 8px ${isBotOnline ? "var(--green)" : "var(--red)"};animation:pulse 2s infinite"></div>
-  </div>
-  <button class="hamburger" onclick="toggleSidebar()" aria-label="القائمة">
-    <span></span><span></span><span></span>
-  </button>
-</div>
+<!-- Sidebar Backdrop -->
+<div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
 
-<!-- Sidebar Overlay (mobile) -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-
-<!-- Sidebar Reopen Tab (desktop, shown when sidebar is collapsed) -->
-<button class="sb-reopen" onclick="toggleSidebar()" title="إظهار القائمة" aria-label="إظهار القائمة">
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-  <span style="font-size:.58rem;writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.5px;color:var(--text3)">القائمة</span>
-</button>
-
-<div class="sidebar" id="mainSidebar">
-  <div class="sidebar-top">
-    <div class="brand">
-      <div class="brand-logo">⚪</div>
-      <div>
-        <div class="brand-text gradient-text">WHITE V3</div>
-        <div class="brand-sub">Panel Control</div>
-      </div>
-    </div>
-    <div class="bot-status">
-      <div class="status-dot"></div>
-      <div class="status-label">${isBotOnline ? "البوت متصل" : "البوت غير متصل"}</div>
-    </div>
-  </div>
-  <div class="nav-section">القائمة الرئيسية</div>
-  ${nav}
-  <div class="sidebar-bottom">
-    <a href="/logout">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-      تسجيل الخروج
+<!-- Top Bar -->
+<header class="topbar">
+  <div class="topbar-right">
+    <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()" aria-label="القائمة" title="القائمة">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <a class="topbar-brand" href="/status">
+      <div class="topbar-logo">⚪</div>
+      <span class="topbar-name">WHITE V3</span>
     </a>
   </div>
+  <div class="topbar-left" style="gap:8px">
+    <span class="topbar-page" style="display:none" id="pageLabel">${title}</span>
+    <!-- Notification Bell -->
+    <div style="position:relative">
+      <button class="menu-btn" id="notifBtn" onclick="toggleNotifPanel()" title="الإشعارات" aria-label="الإشعارات">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </button>
+      <span id="notifBadge" style="display:none;position:absolute;top:-3px;left:-3px;min-width:16px;height:16px;border-radius:8px;background:var(--red);color:#fff;font-size:.58rem;font-weight:800;align-items:center;justify-content:center;line-height:1;border:2px solid var(--bg);padding:0 3px">0</span>
+    </div>
+    <div class="topbar-dot" title="${isBotOnline ? "البوت متصل" : "البوت غير متصل"}"></div>
+  </div>
+
+<!-- Notification Panel -->
+<div id="notifPanel" style="display:none;position:fixed;top:68px;left:16px;width:360px;max-width:calc(100vw - 32px);z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;max-height:480px;display:flex;flex-direction:column">
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <span style="font-size:.88rem;font-weight:700;color:var(--text)">🔔 الإشعارات</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="clearNotifs()" style="font-size:.72rem;color:var(--text3);background:var(--bg4);border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer;font-family:'Cairo',sans-serif;transition:all .2s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">مسح الكل</button>
+      <button onclick="toggleNotifPanel()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:1rem;line-height:1;padding:2px">✕</button>
+    </div>
+  </div>
+  <div id="notifList" style="overflow-y:auto;flex:1;padding:8px"></div>
+  <div id="notifEmpty" style="padding:32px;text-align:center;color:var(--text3);font-size:.85rem">لا توجد إشعارات</div>
 </div>
+</header>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="mainSidebar">
+  <div class="sidebar-head">
+    <div class="sb-brand">
+      <div class="sb-logo">⚪</div>
+      <div>
+        <div class="sb-title gradient-text">WHITE V3</div>
+        <div class="sb-ver">Panel Control</div>
+      </div>
+    </div>
+    <button class="sb-close" onclick="closeSidebar()" aria-label="إغلاق">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="sb-status">
+    <div class="sb-status-dot"></div>
+    <span class="sb-status-txt">${isBotOnline ? "البوت متصل ✓" : "البوت غير متصل"}</span>
+  </div>
+  <div class="sb-section-lbl">التنقل</div>
+  <nav class="sb-nav">
+    ${nav}
+  </nav>
+  <div class="sb-footer">
+    <a class="sb-logout" href="/logout">
+      <span class="nav-icon-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="17" height="17"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </span>
+      <span class="nav-label">تسجيل الخروج</span>
+    </a>
+  </div>
+</aside>
 
 <!-- Mobile Bottom Navigation -->
 <nav class="mobile-nav">
@@ -575,10 +805,11 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
   </a>
 </nav>
 
-<div class="main">
+<main class="main">
   <div id="toast-container"></div>
   ${body}
-</div>
+</main>
+
 <script>
 function showToast(msg, type='success'){
   const c = document.getElementById('toast-container');
@@ -586,52 +817,124 @@ function showToast(msg, type='success'){
   t.className = 'toast-msg toast-' + type;
   t.innerHTML = msg;
   c.appendChild(t);
-  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 4000);
+  setTimeout(() => {
+    t.style.opacity='0';t.style.transform='translateY(8px)';
+    t.style.transition='opacity .3s,transform .3s';
+    setTimeout(()=>t.remove(),300);
+  }, 3800);
 }
 async function api(url, data, method='POST'){
   try{
     const r = await fetch(url, {
       method,
-      headers: {'Content-Type':'application/json'},
-      body: method !== 'GET' ? JSON.stringify(data) : undefined
+      headers:{'Content-Type':'application/json'},
+      body: method!=='GET' ? JSON.stringify(data) : undefined
     });
     return await r.json();
-  } catch(e){ return {error: e.message}; }
+  } catch(e){ return {error:e.message}; }
 }
-function _isMobile(){ return window.innerWidth <= 768; }
-function toggleSidebar(){
-  if(_isMobile()){
-    const s = document.getElementById('mainSidebar');
-    const o = document.getElementById('sidebarOverlay');
-    const opening = !s.classList.contains('open');
-    s.classList.toggle('open', opening);
-    o.classList.toggle('active', opening);
-  } else {
-    const collapsed = document.body.classList.toggle('sb-collapsed');
-    try{ localStorage.setItem('wv3_sb', collapsed ? '1' : '0'); }catch(_){}
-  }
+
+const _sidebar  = document.getElementById('mainSidebar');
+const _backdrop = document.getElementById('sbBackdrop');
+const _menuBtn  = document.getElementById('menuBtn');
+
+function openSidebar(){
+  _sidebar.classList.add('open');
+  _backdrop.classList.add('show');
+  _menuBtn.classList.add('active');
+  document.body.style.overflow = 'hidden';
 }
 function closeSidebar(){
-  if(_isMobile()){
-    document.getElementById('mainSidebar').classList.remove('open');
-    document.getElementById('sidebarOverlay').classList.remove('active');
+  _sidebar.classList.remove('open');
+  _backdrop.classList.remove('show');
+  _menuBtn.classList.remove('active');
+  document.body.style.overflow = '';
+}
+function toggleSidebar(){
+  _sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+}
+
+// Close on Escape
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeSidebar(); });
+// Close on resize to prevent stuck state
+window.addEventListener('resize', () => { if(window.innerWidth > 900) closeSidebar(); });
+
+// Show page label on mobile topbar
+(function(){
+  const lbl = document.getElementById('pageLabel');
+  if(lbl && window.innerWidth < 500) lbl.style.display='';
+})();
+
+// ── Notification System ─────────────────────────────────────────
+let _notifPanelOpen = false;
+let _notifSeen      = parseInt(localStorage.getItem('wv3_ns') || '0');
+let _notifData      = [];
+
+function toggleNotifPanel(){
+  _notifPanelOpen = !_notifPanelOpen;
+  const p = document.getElementById('notifPanel');
+  p.style.display = _notifPanelOpen ? 'flex' : 'none';
+  if(_notifPanelOpen){
+    _notifSeen = _notifData.length ? _notifData[_notifData.length-1].id : _notifSeen;
+    try{ localStorage.setItem('wv3_ns', _notifSeen); }catch(_){}
+    renderNotifs();
+    hideBadge();
   }
 }
-// Restore desktop sidebar state from localStorage
-(function(){
+function hideBadge(){
+  const b = document.getElementById('notifBadge');
+  if(b){ b.style.display='none'; b.textContent='0'; }
+}
+function renderNotifs(){
+  const list  = document.getElementById('notifList');
+  const empty = document.getElementById('notifEmpty');
+  if(!_notifData.length){ list.innerHTML=''; empty.style.display=''; return; }
+  empty.style.display='none';
+  const icons = {error:'❌',warn:'⚠️',info:'ℹ️'};
+  const cols  = {error:'var(--red)',warn:'var(--yellow)',info:'var(--accent2)'};
+  list.innerHTML = [..._notifData].reverse().slice(0,40).map(n => {
+    const t = new Date(n.ts).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    return \`<div style="padding:9px 10px;border-radius:8px;margin-bottom:6px;background:var(--bg3);border:1px solid var(--border);border-right:3px solid \${cols[n.level]||cols.info}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+        <span style="font-size:.72rem;color:\${cols[n.level]||cols.info};font-weight:700">\${icons[n.level]||'ℹ️'} \${n.level.toUpperCase()}</span>
+        <span style="font-size:.65rem;color:var(--text3);white-space:nowrap">\${t}</span>
+      </div>
+      <div style="font-size:.76rem;color:var(--text2);margin-top:4px;line-height:1.5;word-break:break-all">\${escN(n.msg)}</div>
+    </div>\`;
+  }).join('');
+}
+function escN(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function clearNotifs(){
+  await fetch('/api/notifications/clear',{method:'POST'});
+  _notifData = [];
+  renderNotifs();
+  hideBadge();
+  _notifSeen = _notifSeq||0;
+  try{ localStorage.setItem('wv3_ns',_notifSeen); }catch(_){}
+}
+async function _pollNotifs(){
   try{
-    if(!_isMobile() && localStorage.getItem('wv3_sb') === '1'){
-      document.body.classList.add('sb-collapsed');
+    const r = await fetch('/api/notifications');
+    if(!r.ok) return;
+    const d = await r.json();
+    _notifData = d.items||[];
+    const unseen = _notifData.filter(n=>n.id > _notifSeen).length;
+    const b = document.getElementById('notifBadge');
+    if(b){
+      if(unseen > 0){ b.textContent = unseen>99?'99+':unseen; b.style.display='flex'; }
+      else { b.style.display='none'; }
     }
+    if(_notifPanelOpen) renderNotifs();
   }catch(_){}
-})();
-// Close mobile sidebar on nav click
-document.querySelectorAll('.nav-item').forEach(a => a.addEventListener('click', closeSidebar));
-// Close mobile sidebar on resize to desktop
-window.addEventListener('resize', function(){
-  if(!_isMobile()){
-    document.getElementById('mainSidebar').classList.remove('open');
-    document.getElementById('sidebarOverlay').classList.remove('active');
+}
+_pollNotifs();
+setInterval(_pollNotifs, 12000);
+
+// Close notif panel on outside click
+document.addEventListener('click', e=>{
+  if(_notifPanelOpen && !document.getElementById('notifPanel').contains(e.target) && !document.getElementById('notifBtn').contains(e.target)){
+    _notifPanelOpen = false;
+    document.getElementById('notifPanel').style.display='none';
   }
 });
 </script>
@@ -1594,70 +1897,253 @@ app.get("/commands", auth, (req, res) => {
   const cmds = parseCommandConfigs();
   const cats = [...new Set(cmds.map(c => c.category))].sort();
 
-  const roleLabel = r => ["👤 عام","👮 مشرف","🛡️ مشرف بوت","👑 أدمن"][r] || String(r);
-  const roleLabelFull = r => ["0 — 👤 عام (الجميع)","1 — 👮 مشرف المجموعة فقط","2 — 🛡️ مشرف البوت فقط","3 — 👑 أدمن البوت فقط"][r] || String(r);
-  const roleColor = r => ["rgba(96,165,250,.13)","rgba(16,185,129,.13)","rgba(245,158,11,.13)","rgba(239,68,68,.13)"][r] || "var(--bg3)";
-  const roleBorder = r => ["rgba(96,165,250,.4)","rgba(16,185,129,.4)","rgba(245,158,11,.4)","rgba(239,68,68,.4)"][r] || "var(--border)";
-  const roleTextColor = r => ["#60a5fa","#6ee7b7","#fbbf24","#f87171"][r] || "var(--text2)";
+  const roleLabel   = r => ["عام","مشرف","مشرف بوت","أدمن"][r] ?? String(r);
+  const roleEmoji   = r => ["👤","👮","🛡️","👑"][r] ?? "🔑";
+  const roleBg      = r => ["rgba(96,165,250,.12)","rgba(16,185,129,.12)","rgba(245,158,11,.12)","rgba(239,68,68,.12)"][r] ?? "var(--bg3)";
+  const roleBorder  = r => ["rgba(96,165,250,.35)","rgba(16,185,129,.35)","rgba(245,158,11,.35)","rgba(239,68,68,.35)"][r] ?? "var(--border)";
+  const roleColor   = r => ["#60a5fa","#6ee7b7","#fbbf24","#f87171"][r] ?? "var(--text2)";
 
-  const catOptions = cats.map(c => `<option value="${htmlEscape(c)}">${htmlEscape(c)}</option>`).join("");
+  const byRole = [0,1,2,3].map(r => cmds.filter(c => c.role === r).length);
 
-  // Store cmd data in JSON embedded in a script tag — avoids broken onclick quoting
   const cmdsJson = JSON.stringify(cmds.map(cmd => ({
     name: cmd.name, file: cmd.file, role: cmd.role,
     countDown: cmd.countDown, aliases: cmd.aliases, desc: cmd.desc, category: cmd.category
   })));
 
+  const catPills = cats.map(c =>
+    `<button class="cat-pill" data-cat="${htmlEscape(c)}" onclick="setCat(this)">${htmlEscape(c)}</button>`
+  ).join("");
+
   const cards = cmds.map((cmd, i) => `
-<div class="cmd-card"
+<div class="cmd-card" tabindex="0"
   data-name="${htmlEscape(cmd.name)}"
   data-cat="${htmlEscape(cmd.category)}"
   data-role="${cmd.role}"
-  data-i="${i}"
-  style="background:var(--bg3);border:1px solid ${roleBorder(cmd.role)};border-radius:12px;padding:12px 14px;cursor:pointer;transition:all .2s;user-select:none">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:7px">
-    <div style="font-weight:700;font-size:.88rem;color:var(--text);word-break:break-all;line-height:1.3">${htmlEscape(cmd.name)}</div>
-    <span style="flex-shrink:0;font-size:.65rem;padding:2px 7px;border-radius:20px;background:${roleColor(cmd.role)};color:${roleTextColor(cmd.role)};border:1px solid ${roleBorder(cmd.role)};white-space:nowrap;margin-top:1px">${roleLabel(cmd.role)}</span>
+  data-i="${i}">
+  <div class="cmd-card-top">
+    <span class="cmd-name">${htmlEscape(cmd.name)}</span>
+    <span class="cmd-role-badge" style="background:${roleBg(cmd.role)};color:${roleColor(cmd.role)};border-color:${roleBorder(cmd.role)}">${roleEmoji(cmd.role)}</span>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
-    <span style="font-size:.68rem;color:var(--text3);background:var(--bg4);padding:2px 7px;border-radius:6px;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📂 ${htmlEscape(cmd.category)}</span>
-    <span style="font-size:.68rem;color:var(--text3)">⏱️ ${cmd.countDown}s</span>
+  <div class="cmd-card-meta">
+    <span class="cmd-cat">${htmlEscape(cmd.category)}</span>
+    <span class="cmd-cd">⏱ ${cmd.countDown}s</span>
   </div>
-  ${cmd.aliases.length ? `<div style="font-size:.65rem;color:var(--text3);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cmd.aliases.slice(0,3).map(a=>`<code>${htmlEscape(a)}</code>`).join(" ")}</div>` : ""}
+  ${cmd.aliases.length ? `<div class="cmd-aliases">${cmd.aliases.slice(0,3).map(a=>`<code>${htmlEscape(a)}</code>`).join("")}</div>` : ""}
 </div>`).join("");
 
   const body = `
-<div class="page-header" style="margin-bottom:16px">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div>
-      <div class="page-title">⚡ إدارة الأوامر</div>
-      <div class="page-sub">${cmds.length} أمر — اضغط على أي أمر لتعديله</div>
-    </div>
-    <button class="btn btn-outline btn-sm" onclick="toggleSidebar()" style="display:flex;align-items:center;gap:6px">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-      القائمة
-    </button>
+<style>
+/* ── Commands page ─────────────────────── */
+.cmd-toolbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-md);padding:12px 14px;margin-bottom:14px;
+}
+.cmd-search{
+  flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:9px 13px;
+  font-size:.85rem;font-family:'Cairo',sans-serif;outline:none;transition:all .2s;
+}
+.cmd-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.cmd-search::placeholder{color:var(--text3)}
+.cmd-select{
+  background:var(--bg3);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:9px 12px;font-size:.82rem;font-family:'Cairo',sans-serif;
+  outline:none;cursor:pointer;transition:all .2s;
+}
+.cmd-select:focus{border-color:var(--accent)}
+.cmd-stat-row{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;
+}
+.cmd-stat{
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;text-align:center;
+}
+.cmd-stat-val{font-size:1.3rem;font-weight:800;line-height:1}
+.cmd-stat-lbl{font-size:.68rem;color:var(--text3);margin-top:4px;font-weight:500}
+.cat-pills{
+  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;
+}
+.cat-pill{
+  padding:5px 13px;border-radius:20px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text2);font-family:'Cairo',sans-serif;
+  font-size:.76rem;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.cat-pill:hover{background:var(--bg4);color:var(--text)}
+.cat-pill.active{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.45);color:var(--accent2)}
+.cat-pill-all{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:var(--accent2)}
+.cmd-count-bar{
+  font-size:.75rem;color:var(--text3);margin-bottom:10px;font-weight:500;
+}
+.cmd-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:9px;
+}
+.cmd-card{
+  background:var(--bg2);border-radius:10px;padding:12px 13px;
+  cursor:pointer;transition:all .22s cubic-bezier(.4,0,.2,1);
+  user-select:none;outline:none;border:1px solid var(--border);
+  display:flex;flex-direction:column;gap:7px;
+}
+.cmd-card:hover,.cmd-card:focus{
+  border-color:rgba(59,130,246,.5);
+  box-shadow:0 4px 20px rgba(59,130,246,.12);
+  transform:translateY(-2px);
+}
+.cmd-card:active{transform:translateY(0);box-shadow:none}
+.cmd-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
+.cmd-name{
+  font-weight:700;font-size:.86rem;color:var(--text);
+  word-break:break-all;line-height:1.35;flex:1;
+}
+.cmd-role-badge{
+  flex-shrink:0;font-size:.75rem;width:26px;height:26px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid;margin-top:1px;
+}
+.cmd-card-meta{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.cmd-cat{
+  font-size:.67rem;color:var(--text3);background:var(--bg4);
+  padding:2px 8px;border-radius:5px;max-width:70%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.cmd-cd{font-size:.67rem;color:var(--text3);white-space:nowrap}
+.cmd-aliases{display:flex;flex-wrap:wrap;gap:4px}
+.cmd-aliases code{font-size:.63rem;background:rgba(59,130,246,.1);color:var(--accent3);padding:1px 6px;border-radius:4px;border:none}
+.cmd-empty{
+  grid-column:1/-1;text-align:center;padding:48px 20px;
+  color:var(--text3);font-size:.9rem;
+}
+/* ── Modal ─────────────────────────────── */
+.cmd-modal-backdrop{
+  display:none;position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  align-items:center;justify-content:center;padding:20px;
+}
+.cmd-modal-backdrop.open{display:flex}
+.cmd-modal{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:20px;width:100%;max-width:480px;max-height:90vh;
+  overflow-y:auto;box-shadow:0 32px 64px rgba(0,0,0,.6),0 8px 16px rgba(0,0,0,.4);
+  transform:scale(.94) translateY(12px);opacity:0;
+  transition:transform .28s cubic-bezier(.34,1.56,.64,1),opacity .22s ease;
+  position:relative;
+}
+.cmd-modal-backdrop.open .cmd-modal{transform:scale(1) translateY(0);opacity:1}
+.cmd-modal::-webkit-scrollbar{width:4px}
+.cmd-modal::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.cmd-modal-head{
+  padding:20px 20px 0;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  position:sticky;top:0;background:var(--bg2);z-index:1;
+  border-radius:20px 20px 0 0;padding-bottom:14px;
+  border-bottom:1px solid var(--border);
+}
+.cmd-modal-title-wrap{flex:1;min-width:0}
+.cmd-modal-sub{font-size:.7rem;color:var(--text3);font-weight:500;margin-bottom:3px}
+.cmd-modal-title{font-size:1.15rem;font-weight:800;color:var(--accent2);word-break:break-all}
+.cmd-modal-file{font-size:.68rem;color:var(--text3);margin-top:3px;font-family:'Courier New',monospace}
+.cmd-modal-close{
+  width:34px;height:34px;border-radius:9px;border:1px solid var(--border);
+  background:var(--bg4);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--text2);transition:all .2s;flex-shrink:0;margin-top:2px;
+}
+.cmd-modal-close:hover{background:var(--red-bg);border-color:rgba(239,68,68,.35);color:var(--red)}
+.cmd-modal-body{padding:18px 20px 22px}
+.modal-section{margin-bottom:18px}
+.modal-section-lbl{
+  font-size:.72rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;
+  font-weight:700;margin-bottom:8px;
+}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.role-btn{
+  padding:10px 8px;border-radius:10px;font-family:'Cairo',sans-serif;
+  font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  border:1px solid var(--border);background:var(--bg3);color:var(--text2);
+}
+.role-btn:hover{border-color:var(--border2);background:var(--bg4);color:var(--text)}
+.role-btn.active-0{background:rgba(96,165,250,.15)!important;border-color:rgba(96,165,250,.5)!important;color:#60a5fa!important}
+.role-btn.active-1{background:rgba(16,185,129,.15)!important;border-color:rgba(16,185,129,.5)!important;color:#6ee7b7!important}
+.role-btn.active-2{background:rgba(245,158,11,.15)!important;border-color:rgba(245,158,11,.5)!important;color:#fbbf24!important}
+.role-btn.active-3{background:rgba(239,68,68,.15)!important;border-color:rgba(239,68,68,.5)!important;color:#f87171!important}
+.cd-row{display:flex;align-items:center;gap:10px}
+.cd-range{flex:1;accent-color:var(--accent);height:5px;cursor:pointer}
+.cd-input{
+  width:70px;background:var(--bg3);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:7px 8px;font-size:.9rem;font-family:'Cairo',sans-serif;
+  text-align:center;outline:none;transition:all .2s;
+}
+.cd-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.cd-display{font-size:.8rem;color:var(--accent2);font-weight:700;margin-top:5px}
+.info-box{
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;font-size:.78rem;color:var(--text2);line-height:1.6;
+}
+.info-box code{font-size:.74rem}
+.modal-actions{display:flex;gap:8px;padding:0 20px 20px}
+.modal-actions .btn{flex:1;justify-content:center}
+.modal-saving{
+  text-align:center;padding:0 20px 14px;font-size:.82rem;font-weight:600;min-height:22px;
+}
+@media(max-width:600px){
+  .cmd-stat-row{grid-template-columns:repeat(2,1fr)}
+  .cmd-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .cmd-modal-backdrop{padding:0;align-items:flex-end}
+  .cmd-modal{max-width:100%;border-radius:20px 20px 0 0;transform:translateY(40px);max-height:92vh}
+  .cmd-modal-backdrop.open .cmd-modal{transform:translateY(0)}
+  .role-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:360px){
+  .cmd-grid{grid-template-columns:1fr}
+}
+</style>
+
+<div class="page-header">
+  <div class="page-title">⚡ إدارة الأوامر</div>
+  <div class="page-sub">${cmds.length} أمر محمّل — اضغط على أي أمر لتعديله</div>
+</div>
+
+<!-- Stats -->
+<div class="cmd-stat-row">
+  <div class="cmd-stat">
+    <div class="cmd-stat-val" style="color:var(--accent2)">${cmds.length}</div>
+    <div class="cmd-stat-lbl">إجمالي الأوامر</div>
+  </div>
+  <div class="cmd-stat">
+    <div class="cmd-stat-val" style="color:#60a5fa">${byRole[0]}</div>
+    <div class="cmd-stat-lbl">👤 عام</div>
+  </div>
+  <div class="cmd-stat">
+    <div class="cmd-stat-val" style="color:#fbbf24">${byRole[1]+byRole[2]}</div>
+    <div class="cmd-stat-lbl">🛡️ مشرف</div>
+  </div>
+  <div class="cmd-stat">
+    <div class="cmd-stat-val" style="color:#f87171">${byRole[3]}</div>
+    <div class="cmd-stat-lbl">👑 أدمن</div>
   </div>
 </div>
 
-<!-- Filters -->
-<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
-  <input type="text" id="cmdSearch" class="form-control" placeholder="🔍 ابحث باسم الأمر..." oninput="filterCommands()" style="font-size:.85rem;margin-bottom:8px"/>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <select id="catFilter" class="form-control" onchange="filterCommands()" style="font-size:.78rem">
-      <option value="">📂 كل التصنيفات</option>
-      ${catOptions}
-    </select>
-    <select id="roleFilter" class="form-control" onchange="filterCommands()" style="font-size:.78rem">
-      <option value="">🔑 كل الصلاحيات</option>
-      <option value="0">👤 عام</option>
-      <option value="1">👮 مشرف المجموعة</option>
-      <option value="2">🛡️ مشرف البوت</option>
-      <option value="3">👑 أدمن البوت</option>
-    </select>
-  </div>
-  <div id="cmdCount" style="font-size:.75rem;color:var(--text3);margin-top:8px">يعرض ${cmds.length} أمر</div>
+<!-- Toolbar -->
+<div class="cmd-toolbar">
+  <input type="text" class="cmd-search" id="cmdSearch" placeholder="🔍 ابحث عن أمر..." oninput="filterCmds()"/>
+  <select class="cmd-select" id="roleFilter" onchange="filterCmds()">
+    <option value="">🔑 كل الصلاحيات</option>
+    <option value="0">👤 عام</option>
+    <option value="1">👮 مشرف المجموعة</option>
+    <option value="2">🛡️ مشرف البوت</option>
+    <option value="3">👑 أدمن البوت</option>
+  </select>
 </div>
+
+<!-- Category pills -->
+<div class="cat-pills">
+  <button class="cat-pill cat-pill-all active" data-cat="" onclick="setCat(this)">🗂 الكل</button>
+  ${catPills}
+</div>
+
+<div class="cmd-count-bar" id="cmdCount">يعرض <strong>${cmds.length}</strong> أمر</div>
 
 <!-- Grid -->
 <div id="cmdGrid" class="cmd-grid">
@@ -1665,177 +2151,230 @@ app.get("/commands", auth, (req, res) => {
 </div>
 
 <!-- Edit Modal -->
-<div id="cmdModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;padding:0">
-  <div id="cmdModalBox" style="background:var(--bg2);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:20px 18px 28px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.6);transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)">
-    <!-- Handle -->
-    <div style="width:40px;height:4px;background:var(--border2);border-radius:4px;margin:0 auto 18px;cursor:grab"></div>
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div>
-        <div style="font-size:.72rem;color:var(--text3);margin-bottom:2px">تعديل الأمر</div>
-        <div style="font-weight:800;font-size:1.1rem;color:var(--accent2)" id="modalCmdName"></div>
+<div class="cmd-modal-backdrop" id="cmdModal" onclick="onBackdropClick(event)">
+  <div class="cmd-modal" id="cmdModalBox" onclick="event.stopPropagation()">
+    <div class="cmd-modal-head">
+      <div class="cmd-modal-title-wrap">
+        <div class="cmd-modal-sub">تعديل الأمر</div>
+        <div class="cmd-modal-title" id="mTitle">—</div>
+        <div class="cmd-modal-file" id="mFile">—</div>
       </div>
-      <button onclick="closeModal()" style="background:var(--bg4);border:none;border-radius:10px;color:var(--text2);cursor:pointer;width:36px;height:36px;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      <button class="cmd-modal-close" onclick="closeModal()" aria-label="إغلاق">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
     </div>
-    <input type="hidden" id="modalFile"/>
-    <!-- Role -->
-    <div style="margin-bottom:14px">
-      <label class="form-label" style="margin-bottom:6px">🔑 مستوى الصلاحية</label>
-      <div id="roleButtons" style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
-        <button class="role-btn" data-role="0" onclick="selectRole(0)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(96,165,250,.4);background:rgba(96,165,250,.08);color:#60a5fa;font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">0 — 👤 عام</button>
-        <button class="role-btn" data-role="1" onclick="selectRole(1)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(16,185,129,.3);background:transparent;color:var(--text2);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">1 — 👮 مشرف</button>
-        <button class="role-btn" data-role="2" onclick="selectRole(2)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(245,158,11,.3);background:transparent;color:var(--text2);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">2 — 🛡️ مشرف بوت</button>
-        <button class="role-btn" data-role="3" onclick="selectRole(3)" style="padding:10px 6px;border-radius:10px;border:1px solid rgba(239,68,68,.3);background:transparent;color:var(--text2);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;font-weight:600;transition:all .2s">3 — 👑 أدمن</button>
+    <div class="cmd-modal-body">
+      <input type="hidden" id="mFileVal"/>
+      <input type="hidden" id="mRoleVal" value="0"/>
+
+      <!-- Role -->
+      <div class="modal-section">
+        <div class="modal-section-lbl">مستوى الصلاحية</div>
+        <div class="role-grid">
+          <button class="role-btn" data-role="0" onclick="pickRole(0)">👤 عام</button>
+          <button class="role-btn" data-role="1" onclick="pickRole(1)">👮 مشرف</button>
+          <button class="role-btn" data-role="2" onclick="pickRole(2)">🛡️ مشرف بوت</button>
+          <button class="role-btn" data-role="3" onclick="pickRole(3)">👑 أدمن</button>
+        </div>
       </div>
-      <input type="hidden" id="modalRole" value="0"/>
-    </div>
-    <!-- Cooldown -->
-    <div style="margin-bottom:14px">
-      <label class="form-label" style="margin-bottom:6px">⏱️ وقت الانتظار بين الاستخدامات (ثانية)</label>
-      <div style="display:flex;align-items:center;gap:10px">
-        <input type="range" id="modalCdRange" min="0" max="300" step="1" style="flex:1;accent-color:var(--accent);height:6px"
-          oninput="document.getElementById('modalCd').value=this.value;document.getElementById('cdVal').textContent=this.value+'s'"/>
-        <input type="number" id="modalCd" class="form-control" min="0" max="3600" style="width:72px;text-align:center;font-size:.9rem;padding:7px 6px"
-          oninput="const v=parseInt(this.value)||0;document.getElementById('modalCdRange').value=Math.min(300,v);document.getElementById('cdVal').textContent=v+'s'"/>
+
+      <!-- Cooldown -->
+      <div class="modal-section">
+        <div class="modal-section-lbl">وقت الانتظار بين الاستخدامات</div>
+        <div class="cd-row">
+          <input type="range" class="cd-range" id="mCdRange" min="0" max="300" step="1"
+            oninput="syncCd(this.value,'range')"/>
+          <input type="number" class="cd-input" id="mCdNum" min="0" max="3600"
+            oninput="syncCd(this.value,'num')"/>
+        </div>
+        <div class="cd-display" id="mCdDisplay">0 ثانية</div>
       </div>
-      <div style="font-size:.75rem;color:var(--accent2);margin-top:4px;font-weight:700" id="cdVal">0s</div>
+
+      <!-- Name -->
+      <div class="modal-section">
+        <div class="modal-section-lbl">اسم الأمر <span style="font-weight:400;font-size:.7rem;color:var(--text3);text-transform:none">(اتركه كما هو لعدم التغيير)</span></div>
+        <input type="text" class="form-control" id="mNameInput" placeholder="اسم الأمر — بدون مسافات"
+          style="font-family:'Courier New',monospace;font-size:.88rem"/>
+      </div>
+
+      <!-- Info (aliases + desc) -->
+      <div class="modal-section" id="mInfoSection" style="display:none">
+        <div class="info-box" id="mInfoBox"></div>
+      </div>
     </div>
-    <!-- Name -->
-    <div style="margin-bottom:14px">
-      <label class="form-label" style="margin-bottom:6px">📝 اسم الأمر <span style="font-weight:400;color:var(--text3)">(اتركه لعدم التغيير)</span></label>
-      <input type="text" id="modalName" class="form-control" placeholder="اسم الأمر — بدون مسافات" style="font-family:'Courier New',monospace"/>
-    </div>
-    <!-- Info -->
-    <div id="modalAliases" style="font-size:.75rem;color:var(--text3);margin-bottom:6px"></div>
-    <div id="modalDesc" style="font-size:.75rem;color:var(--text3);font-style:italic;margin-bottom:14px"></div>
-    <!-- Actions -->
-    <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
-      <button class="btn btn-primary" onclick="saveCmd()" style="width:100%;justify-content:center">💾 حفظ التعديلات</button>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveCmd()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        حفظ التعديلات
+      </button>
       <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
     </div>
-    <div id="modalStatus" style="margin-top:10px;font-size:.82rem;font-weight:600;min-height:20px;text-align:center"></div>
+    <div class="modal-saving" id="mStatus"></div>
   </div>
 </div>
 
-<style>
-/* Commands Grid */
-.cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding-bottom:8px}
-.cmd-card:hover{border-color:var(--accent)!important;box-shadow:0 4px 18px rgba(59,130,246,.15)}
-@media(max-width:600px){
-  .cmd-grid{grid-template-columns:repeat(2,1fr);gap:8px}
-}
-@media(max-width:360px){
-  .cmd-grid{grid-template-columns:1fr}
-}
-/* Active role button */
-.role-btn.active{background:rgba(59,130,246,.18)!important;border-color:rgba(59,130,246,.7)!important;color:#93c5fd!important}
-/* Scrollbar in modal */
-#cmdModalBox::-webkit-scrollbar{width:4px}
-#cmdModalBox::-webkit-scrollbar-track{background:transparent}
-#cmdModalBox::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
-</style>
-
 <script>
 const _CMDS = ${cmdsJson};
+let _activeCat = '';
 
-// Build cmd-card click handlers using event delegation (safe from quote issues)
-document.getElementById('cmdGrid').addEventListener('click', function(e){
+// ── Event delegation for cards ──────────────
+document.getElementById('cmdGrid').addEventListener('click', e => {
   const card = e.target.closest('.cmd-card');
-  if(!card) return;
-  const i = parseInt(card.dataset.i);
-  const cmd = _CMDS[i];
-  if(!cmd) return;
-  openCmd(cmd);
+  if(card) openCmd(parseInt(card.dataset.i));
+});
+document.getElementById('cmdGrid').addEventListener('keydown', e => {
+  if(e.key==='Enter'||e.key===' '){
+    const card = e.target.closest('.cmd-card');
+    if(card){ e.preventDefault(); openCmd(parseInt(card.dataset.i)); }
+  }
 });
 
-function openCmd(cmd){
-  document.getElementById('modalCmdName').textContent = cmd.name;
-  document.getElementById('modalFile').value = cmd.file;
-  document.getElementById('modalName').value = cmd.name;
-  const cd = cmd.countDown || 0;
-  document.getElementById('modalCd').value = cd;
-  document.getElementById('modalCdRange').value = Math.min(300, cd);
-  document.getElementById('cdVal').textContent = cd + 's';
-  document.getElementById('modalAliases').innerHTML = cmd.aliases && cmd.aliases.length
-    ? '📎 أسماء مختصرة: ' + cmd.aliases.map(a=>'<code>'+a+'</code>').join(', ')
-    : '';
-  document.getElementById('modalDesc').textContent = cmd.desc ? '📄 ' + cmd.desc : '';
-  document.getElementById('modalStatus').innerHTML = '';
-  selectRole(cmd.role || 0);
-
-  const modal = document.getElementById('cmdModal');
-  const box = document.getElementById('cmdModalBox');
-  modal.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  // Animate slide up
-  requestAnimationFrame(()=>{ box.style.transform = 'translateY(0)'; });
+// ── Filter ──────────────────────────────────
+function setCat(btn){
+  document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  _activeCat = btn.dataset.cat;
+  filterCmds();
 }
-
-function selectRole(r){
-  document.getElementById('modalRole').value = r;
-  document.querySelectorAll('.role-btn').forEach(b=>{
-    const active = parseInt(b.dataset.role) === r;
-    b.classList.toggle('active', active);
-  });
-}
-
-function closeModal(){
-  const box = document.getElementById('cmdModalBox');
-  box.style.transform = 'translateY(100%)';
-  setTimeout(()=>{
-    document.getElementById('cmdModal').style.display = 'none';
-    document.body.style.overflow = '';
-  }, 280);
-}
-
-document.getElementById('cmdModal').addEventListener('click', function(e){
-  if(e.target === this) closeModal();
-});
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
-
-function filterCommands(){
-  const q = document.getElementById('cmdSearch').value.toLowerCase().trim();
-  const cat = document.getElementById('catFilter').value;
+function filterCmds(){
+  const q    = document.getElementById('cmdSearch').value.toLowerCase().trim();
   const role = document.getElementById('roleFilter').value;
   const cards = document.querySelectorAll('.cmd-card');
   let vis = 0;
   cards.forEach(c => {
-    const name = c.dataset.name.toLowerCase();
-    const ok = (!q || name.includes(q)) && (!cat || c.dataset.cat === cat) && (!role || c.dataset.role === role);
-    c.style.display = ok ? '' : 'none';
-    if(ok) vis++;
+    const nameMatch = !q || c.dataset.name.toLowerCase().includes(q);
+    const catMatch  = !_activeCat || c.dataset.cat === _activeCat;
+    const roleMatch = !role || c.dataset.role === role;
+    const show = nameMatch && catMatch && roleMatch;
+    c.style.display = show ? '' : 'none';
+    if(show) vis++;
   });
-  document.getElementById('cmdCount').textContent = 'يعرض ' + vis + ' أمر';
+  const el = document.getElementById('cmdCount');
+  el.innerHTML = 'يعرض <strong>' + vis + '</strong> أمر' + (vis === 0 ? ' — لا توجد نتائج' : '');
+  // Show/hide empty state
+  let empty = document.getElementById('cmdEmpty');
+  if(vis === 0){
+    if(!empty){
+      empty = document.createElement('div');
+      empty.id = 'cmdEmpty';
+      empty.className = 'cmd-empty';
+      empty.textContent = '😕 لا توجد أوامر تطابق البحث';
+      document.getElementById('cmdGrid').appendChild(empty);
+    }
+  } else {
+    if(empty) empty.remove();
+  }
 }
 
+// ── Modal open ──────────────────────────────
+function openCmd(i){
+  const cmd = _CMDS[i];
+  if(!cmd) return;
+  document.getElementById('mTitle').textContent   = cmd.name;
+  document.getElementById('mFile').textContent    = cmd.file;
+  document.getElementById('mFileVal').value       = cmd.file;
+  document.getElementById('mNameInput').value     = cmd.name;
+  document.getElementById('mStatus').innerHTML    = '';
+  const cd = cmd.countDown || 0;
+  document.getElementById('mCdRange').value       = Math.min(300, cd);
+  document.getElementById('mCdNum').value         = cd;
+  document.getElementById('mCdDisplay').textContent = cd + ' ثانية';
+  pickRole(cmd.role || 0);
+  // Info box
+  const parts = [];
+  if(cmd.aliases && cmd.aliases.length)
+    parts.push('📎 الأسماء المختصرة: ' + cmd.aliases.map(a=>'<code>'+a+'</code>').join(' '));
+  if(cmd.desc)
+    parts.push('📄 ' + cmd.desc);
+  const infoSection = document.getElementById('mInfoSection');
+  if(parts.length){
+    document.getElementById('mInfoBox').innerHTML = parts.join('<br/>');
+    infoSection.style.display = '';
+  } else {
+    infoSection.style.display = 'none';
+  }
+  // Open
+  const backdrop = document.getElementById('cmdModal');
+  backdrop.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(()=>{ document.getElementById('mNameInput').focus(); }, 280);
+}
+
+function onBackdropClick(e){ if(e.target===e.currentTarget) closeModal(); }
+function closeModal(){
+  const backdrop = document.getElementById('cmdModal');
+  backdrop.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Close modal on Escape (sidebar close handled separately in layout)
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && document.getElementById('cmdModal').classList.contains('open')){
+    e.stopImmediatePropagation();
+    closeModal();
+  }
+});
+
+// ── Role picker ─────────────────────────────
+function pickRole(r){
+  document.getElementById('mRoleVal').value = r;
+  document.querySelectorAll('.role-btn').forEach(b=>{
+    b.className = 'role-btn';
+    if(parseInt(b.dataset.role) === r) b.classList.add('active-'+r);
+  });
+}
+
+// ── Cooldown sync ────────────────────────────
+function syncCd(val, from){
+  const n = Math.max(0, parseInt(val)||0);
+  if(from==='range'){
+    document.getElementById('mCdNum').value = n;
+  } else {
+    document.getElementById('mCdRange').value = Math.min(300, n);
+  }
+  document.getElementById('mCdDisplay').textContent = n + ' ثانية';
+}
+
+// ── Save ─────────────────────────────────────
 async function saveCmd(){
-  const file = document.getElementById('modalFile').value;
-  const role = document.getElementById('modalRole').value;
-  const cd = document.getElementById('modalCd').value;
-  const nameEl = document.getElementById('modalName');
-  const origName = document.getElementById('modalCmdName').textContent;
-  const newName = nameEl.value.trim();
-  const st = document.getElementById('modalStatus');
-  st.innerHTML = '<span style="color:var(--text3)">⏳ جارٍ الحفظ...</span>';
+  const file     = document.getElementById('mFileVal').value;
+  const role     = document.getElementById('mRoleVal').value;
+  const cd       = document.getElementById('mCdNum').value;
+  const origName = document.getElementById('mTitle').textContent;
+  const newName  = document.getElementById('mNameInput').value.trim();
+  const st       = document.getElementById('mStatus');
+  st.innerHTML   = '<span style="color:var(--text3)">⏳ جارٍ الحفظ...</span>';
 
   const updates = [
-    { file, field: 'role', value: role },
-    { file, field: 'countDown', value: cd }
+    { file, field:'role', value:role },
+    { file, field:'countDown', value:cd }
   ];
-  if(newName && newName !== origName) updates.push({ file, field: 'name', value: newName });
+  if(newName && newName !== origName)
+    updates.push({ file, field:'name', value:newName });
 
-  let ok = true;
+  let allOk = true;
   for(const u of updates){
     const r = await api('/api/commands/update', u);
-    if(!r.ok){ st.innerHTML = '<span style="color:var(--red)">❌ '+r.error+'</span>'; ok = false; break; }
+    if(!r.ok){
+      st.innerHTML = '<span style="color:var(--red)">❌ ' + (r.error||'فشل') + '</span>';
+      allOk = false;
+      break;
+    }
   }
-  if(ok){
-    st.innerHTML = '<span style="color:var(--green)">✅ تم الحفظ!</span>';
+  if(allOk){
+    st.innerHTML = '<span style="color:var(--green)">✅ تم الحفظ بنجاح!</span>';
     showToast('✅ تم تحديث الأمر: ' + origName, 'success');
-    // Update card UI
+    // Update card data attribute
+    const finalName = (newName && newName !== origName) ? newName : origName;
     const card = document.querySelector('.cmd-card[data-name="'+CSS.escape(origName)+'"]');
-    if(card) card.dataset.role = role;
-    setTimeout(closeModal, 1400);
+    if(card){
+      card.dataset.role = role;
+      if(finalName !== origName) card.dataset.name = finalName;
+      const nameEl = card.querySelector('.cmd-name');
+      if(nameEl) nameEl.textContent = finalName;
+    }
+    setTimeout(closeModal, 1200);
   }
 }
 </script>`;
@@ -2102,6 +2641,59 @@ app.get("/api/status", auth, (req, res) => {
   });
 });
 
+// ─── NOTIFICATIONS API ─────────────────────────────────────────────────────────
+app.get("/api/notifications", auth, (req, res) => {
+  res.json({ ok: true, items: _notifRing.slice(-60), total: _notifRing.length });
+});
+app.post("/api/notifications/clear", auth, (req, res) => {
+  _notifRing.length = 0;
+  res.json({ ok: true });
+});
+app.get("/api/notifications/stream", auth, (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  _notifRing.slice(-20).forEach(n => res.write(`data: ${JSON.stringify(n)}\n\n`));
+  _notifSSE.add(res);
+  const hb = setInterval(() => { try { res.write(": ping\n\n"); } catch(_) {} }, 25000);
+  req.on("close", () => { clearInterval(hb); _notifSSE.delete(res); });
+});
+
+// ─── GROUPS / THREADS API ──────────────────────────────────────────────────────
+app.get("/api/groups", auth, (req, res) => {
+  const threads = (global.db?.allThreadData || []).map(t => ({
+    threadID:    t.threadID,
+    name:        t.threadInfo?.threadName || t.threadID,
+    memberCount: t.threadInfo?.participantIDs?.length || t.threadInfo?.userInfo?.length || 0,
+    isGroup:     t.threadInfo?.isGroup !== false,
+    emoji:       t.threadInfo?.emoji || null,
+    adminIDs:    (t.threadInfo?.adminIDs || []).map(a => a.id || a),
+    msgCount:    (_msgFeed[t.threadID]?.length) || 0,
+  }));
+  res.json({ ok: true, threads, total: threads.length });
+});
+
+app.get("/api/groups/:id/feed", auth, (req, res) => {
+  const tid = req.params.id;
+  res.json({ ok: true, messages: (_msgFeed[tid] || []).slice(-50), threadID: tid });
+});
+
+app.get("/api/groups/:id/feed/stream", auth, (req, res) => {
+  const tid = req.params.id;
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  (_msgFeed[tid] || []).slice(-20).forEach(m => res.write(`data: ${JSON.stringify(m)}\n\n`));
+  if (!_feedSSE[tid]) _feedSSE[tid] = new Set();
+  _feedSSE[tid].add(res);
+  const hb = setInterval(() => { try { res.write(": ping\n\n"); } catch(_) {} }, 25000);
+  req.on("close", () => { clearInterval(hb); if (_feedSSE[tid]) _feedSSE[tid].delete(res); });
+});
+
 // ─── QUICK SEND API ────────────────────────────────────────────────────────────
 app.post("/api/send", auth, (req, res) => {
   try {
@@ -2118,85 +2710,485 @@ app.post("/api/send", auth, (req, res) => {
 
 // ─── QUICK SEND PAGE ──────────────────────────────────────────────────────────
 app.get("/send", auth, (req, res) => {
-  const threads = (global.db?.allThreadData || []).slice(0, 80);
-  const opts = threads.map(t =>
-    `<option value="${htmlEscape(t.threadID)}">${htmlEscape(t.threadInfo?.threadName || t.threadID)}</option>`
-  ).join("");
+  const threadCount = (global.db?.allThreadData || []).length;
 
   const body = `
+<style>
+.group-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:all .22s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+.group-card:hover{border-color:rgba(99,102,241,.5);background:var(--bg3);transform:translateY(-2px);box-shadow:var(--shadow)}
+.group-card.selected{border-color:var(--accent2);background:rgba(99,102,241,.08);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.group-avatar{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
+.glist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding-right:4px}
+.glist::-webkit-scrollbar{width:4px}.glist::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.feed-bubble{padding:9px 12px;border-radius:10px;margin-bottom:7px;max-width:88%;animation:fadeIn .3s ease}
+.feed-bubble.incoming{background:var(--bg3);border:1px solid var(--border);border-radius:10px 10px 10px 2px;margin-right:auto}
+.feed-bubble.outgoing{background:rgba(99,102,241,.18);border:1px solid rgba(99,102,241,.25);border-radius:10px 10px 2px 10px;margin-left:auto}
+.feed-box{max-height:320px;overflow-y:auto;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border)}
+.feed-box::-webkit-scrollbar{width:4px}.feed-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+</style>
+
 <div class="page-header">
-  <div class="page-title">📨 إرسال رسالة سريعة</div>
-  <div class="page-sub">أرسل رسالة مباشرة إلى أي غرفة عبر البوت</div>
+  <div class="page-title">📨 إرسال رسالة</div>
+  <div class="page-sub">اختر غرفة من القائمة ثم أرسل رسالتك مباشرةً عبر البوت</div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="two-col">
-<div>
-<div class="card">
-  <div class="card-header"><div class="card-title">💬 إرسال رسالة</div></div>
-  <div class="form-group">
-    <label class="form-label">معرّف الغرفة (Thread ID)</label>
-    <input type="text" id="threadID" class="form-control" placeholder="100xxxxxxxxxx" list="threadList"/>
-    <datalist id="threadList">${opts}</datalist>
+
+<!-- RIGHT: Group Picker + Send Form -->
+<div style="display:flex;flex-direction:column;gap:16px">
+
+  <!-- Group Search + List -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div class="card-title">👥 اختر غرفة</div>
+      <span class="badge badge-blue" id="gCount">${threadCount} غرفة</span>
+    </div>
+    <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+      <input type="text" id="groupSearch" class="form-control" placeholder="🔍 ابحث باسم الغرفة أو المعرّف..." oninput="filterGroups(this.value)" style="margin:0"/>
+    </div>
+    <div style="padding:12px">
+      <div class="glist" id="groupList">
+        <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3);font-size:.85rem">⏳ جاري تحميل الغرف...</div>
+      </div>
+    </div>
+    <!-- Selected group info bar -->
+    <div id="selectedBar" style="display:none;padding:10px 14px;background:rgba(99,102,241,.06);border-top:1px solid rgba(99,102,241,.2);font-size:.8rem;color:var(--accent2)">
+      ✅ تم اختيار: <strong id="selectedName">—</strong> <span style="color:var(--text3)" id="selectedID"></span>
+    </div>
   </div>
-  <div class="form-group">
-    <label class="form-label">نص الرسالة</label>
-    <textarea id="msgText" class="form-control" rows="5" placeholder="اكتب رسالتك هنا..."></textarea>
-  </div>
-  <div class="btn-row">
-    <button class="btn btn-primary" onclick="sendMsg()">📤 إرسال</button>
-    <button class="btn btn-outline" onclick="document.getElementById('msgText').value=''">🗑️ مسح</button>
+
+  <!-- Send Form -->
+  <div class="card">
+    <div class="card-header"><div class="card-title">💬 نص الرسالة</div></div>
+    <div class="form-group">
+      <textarea id="msgText" class="form-control" rows="4" placeholder="اكتب رسالتك هنا..." style="resize:vertical"></textarea>
+    </div>
+    <div class="tpl-grid" style="margin-bottom:14px">
+      ${[
+        ["👋","مرحباً! كيف يمكنني مساعدتك؟"],
+        ["🔧","البوت يخضع للصيانة حالياً، سنعود قريباً."],
+        ["✅","البوت جاهز ويعمل بشكل طبيعي."],
+        ["🚫","سيتوقف البوت مؤقتاً خلال دقائق."],
+        ["📢","إعلان مهم من إدارة البوت."],
+        ["🎉","شكراً لتفاعلكم! يسعدنا خدمتكم."]
+      ].map(([e,t]) => `<button class="btn btn-outline btn-sm" style="text-align:right;justify-content:flex-start;gap:6px" onclick="setTpl(this)" data-tpl="${t}">${e} <span style="font-size:.75rem;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${t.substring(0,30)}...</span></button>`).join("")}
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="sendMsg()" id="sendBtn">📤 إرسال الآن</button>
+      <button class="btn btn-outline" onclick="sendAll()" title="إرسال لجميع الغرف المحددة">📡 إرسال للكل</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('msgText').value=''">🗑️</button>
+    </div>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-header"><div class="card-title">⚡ قوالب سريعة</div></div>
-  <div style="display:grid;gap:8px">
-    ${[
-      ["👋 تحية","مرحباً! كيف يمكنني مساعدتك؟"],
-      ["🔧 صيانة","البوت يخضع للصيانة حالياً، سنعود قريباً."],
-      ["✅ جاهز","البوت جاهز ويعمل بشكل طبيعي."],
-      ["🚫 إيقاف","سيتوقف البوت مؤقتاً خلال دقائق."]
-    ].map(([lbl,txt]) => `<button class="btn btn-outline btn-sm" onclick="document.getElementById('msgText').value='${txt}'">${lbl}</button>`).join("")}
-  </div>
-</div>
-</div>
+<!-- LEFT: Live Feed + Stats -->
+<div style="display:flex;flex-direction:column;gap:16px">
 
-<div>
-<div class="card">
-  <div class="card-header">
-    <div class="card-title">📋 الغرف المتاحة</div>
-    <span class="badge badge-blue">${threads.length} غرفة</span>
+  <!-- Feed Card -->
+  <div class="card" style="padding:0;overflow:hidden;flex:1">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div class="card-title" id="feedTitle">💬 البث المباشر</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="feedLiveSpan" style="display:none;font-size:.7rem;color:var(--green);font-weight:700;display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.2s infinite"></span>مباشر</span>
+        <button class="btn btn-outline btn-sm" onclick="clearFeed()">🗑️</button>
+      </div>
+    </div>
+    <div id="feedBox" class="feed-box" style="max-height:360px;border:none;border-radius:0">
+      <div id="feedEmpty" style="text-align:center;padding:40px 20px;color:var(--text3);font-size:.85rem">
+        <div style="font-size:2.5rem;margin-bottom:10px">💬</div>
+        اختر غرفة لعرض آخر الرسائل الواردة هنا
+      </div>
+    </div>
+    <div id="feedPollBar" style="padding:8px 14px;border-top:1px solid var(--border);font-size:.72rem;color:var(--text3);display:none">
+      <span id="feedPollStatus">⏳ يتحقق من الرسائل...</span>
+    </div>
   </div>
-  ${threads.length ? `
-  <div style="max-height:400px;overflow-y:auto">
-    <table class="table">
-      <thead><tr><th>اسم الغرفة</th><th>المعرّف</th><th>إرسال</th></tr></thead>
-      <tbody>
-        ${threads.map(t => `
-        <tr>
-          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${htmlEscape(t.threadInfo?.threadName || "—")}</td>
-          <td><code>${t.threadID}</code></td>
-          <td><button class="btn btn-primary btn-sm" onclick="setThread('${t.threadID}')">اختر</button></td>
-        </tr>`).join("")}
-      </tbody>
-    </table>
-  </div>` : `<p style="color:var(--text3);text-align:center;padding:20px">لا توجد غرف — البوت غير متصل</p>`}
-</div>
+
+  <!-- Broadcast stats -->
+  <div class="card" id="broadcastCard" style="display:none">
+    <div class="card-header"><div class="card-title">📡 نتائج الإرسال للكل</div></div>
+    <div id="broadcastResults" style="font-size:.82rem;line-height:1.9"></div>
+  </div>
+
+  <!-- Quick Thread ID input (manual) -->
+  <div class="card">
+    <div class="card-header"><div class="card-title">🔑 معرّف يدوي</div></div>
+    <div class="form-group" style="margin-bottom:8px">
+      <input type="text" id="manualTID" class="form-control" placeholder="أدخل Thread ID مباشرةً..." oninput="onManualTID(this.value)"/>
+    </div>
+    <div style="font-size:.75rem;color:var(--text3)">للإرسال إلى غرفة غير موجودة في القائمة أعلاه</div>
+  </div>
 </div>
 </div>
 
 <script>
-async function sendMsg(){
-  const threadID = document.getElementById('threadID').value.trim();
-  const message  = document.getElementById('msgText').value.trim();
-  if(!threadID) return showToast('❌ أدخل معرّف الغرفة','error');
-  if(!message)  return showToast('❌ اكتب رسالة أولاً','error');
-  const r = await api('/api/send', {threadID, message});
-  r.ok ? showToast('✅ تم الإرسال بنجاح!','success') : showToast('❌ '+r.error,'error');
+let _groups = [];
+let _selID  = '';
+let _feedPollT = null;
+let _feedSSESrc = null;
+const BG_COLORS = ['linear-gradient(135deg,#6366f1,#8b5cf6)','linear-gradient(135deg,#10b981,#059669)','linear-gradient(135deg,#f59e0b,#d97706)','linear-gradient(135deg,#ef4444,#dc2626)','linear-gradient(135deg,#3b82f6,#2563eb)','linear-gradient(135deg,#ec4899,#db2777)'];
+function gbg(id){ const h=String(id).split('').reduce((a,c)=>a+c.charCodeAt(0),0); return BG_COLORS[h%BG_COLORS.length]; }
+
+async function loadGroups(){
+  const r = await fetch('/api/groups');
+  const d = await r.json();
+  _groups = d.threads || [];
+  document.getElementById('gCount').textContent = _groups.length + ' غرفة';
+  renderGroups(_groups);
 }
-function setThread(id){ document.getElementById('threadID').value=id; showToast('✅ تم اختيار الغرفة','success'); }
+
+function renderGroups(list){
+  const box = document.getElementById('groupList');
+  if(!list.length){ box.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3)">لا توجد غرف متاحة</div>'; return; }
+  box.innerHTML = list.map(g=>{
+    const emoji = g.emoji || (g.isGroup ? '👥' : '👤');
+    const name  = g.name.length>28 ? g.name.substring(0,28)+'…' : g.name;
+    const isSel = g.threadID === _selID;
+    return \`<div class="group-card\${isSel?' selected':''}" onclick="selectGroup('\${g.threadID}',\`\${escHtmlJS(g.name)}\`)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="group-avatar" style="background:\${gbg(g.threadID)}">\${emoji}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\${escHtmlJS(name)}</div>
+          <div style="font-size:.7rem;color:var(--text3);margin-top:2px">\${g.memberCount?g.memberCount+' عضو':g.threadID}</div>
+        </div>
+        \${g.msgCount?'<span class="badge badge-blue" style="font-size:.62rem">'+g.msgCount+'</span>':''}
+      </div>
+    </div>\`;
+  }).join('');
+}
+
+function escHtmlJS(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function filterGroups(q){
+  const s = q.toLowerCase();
+  renderGroups(s ? _groups.filter(g=>g.name.toLowerCase().includes(s)||g.threadID.includes(s)) : _groups);
+}
+
+function selectGroup(id, name){
+  _selID = id;
+  document.getElementById('selectedBar').style.display='';
+  document.getElementById('selectedName').textContent = name;
+  document.getElementById('selectedID').textContent = '('+id+')';
+  document.getElementById('manualTID').value = '';
+  renderGroups(_groups.filter(g=>{
+    const s=document.getElementById('groupSearch').value.toLowerCase();
+    return !s || g.name.toLowerCase().includes(s) || g.threadID.includes(s);
+  }));
+  loadFeed(id, name);
+}
+
+function onManualTID(v){ if(v.trim()){ _selID=v.trim(); document.getElementById('selectedBar').style.display=''; document.getElementById('selectedName').textContent='معرّف يدوي'; document.getElementById('selectedID').textContent='('+v.trim()+')'; loadFeed(v.trim(),'غرفة يدوية'); } }
+
+function setTpl(btn){ document.getElementById('msgText').value = btn.dataset.tpl||''; }
+
+async function loadFeed(tid, name){
+  stopFeed();
+  document.getElementById('feedTitle').textContent = '💬 ' + (name||tid);
+  document.getElementById('feedPollBar').style.display='';
+  document.getElementById('feedPollStatus').textContent = '⏳ جاري التحميل...';
+  const r = await fetch('/api/groups/'+encodeURIComponent(tid)+'/feed');
+  const d = await r.json();
+  const msgs = d.messages||[];
+  renderFeed(msgs);
+  document.getElementById('feedLiveSpan').style.display='flex';
+  document.getElementById('feedPollStatus').textContent = '🟢 يتحدث كل 8 ثوانٍ';
+  // Start polling
+  _feedPollT = setInterval(()=>pollFeed(tid), 8000);
+}
+
+async function pollFeed(tid){
+  const r = await fetch('/api/groups/'+encodeURIComponent(tid)+'/feed');
+  const d = await r.json();
+  renderFeed(d.messages||[]);
+}
+
+function stopFeed(){
+  if(_feedPollT){ clearInterval(_feedPollT); _feedPollT=null; }
+  if(_feedSSESrc){ _feedSSESrc.close(); _feedSSESrc=null; }
+  document.getElementById('feedLiveSpan').style.display='none';
+}
+
+function renderFeed(msgs){
+  const box = document.getElementById('feedBox');
+  const empty = document.getElementById('feedEmpty');
+  if(!msgs.length){ empty.style.display=''; box.querySelectorAll('.feed-bubble').forEach(e=>e.remove()); return; }
+  empty.style.display='none';
+  box.innerHTML = msgs.map(m=>{
+    const t  = new Date(m.ts).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+    const isMe = String(m.senderID) === String(window._botID||'');
+    return \`<div class="feed-bubble \${isMe?'outgoing':'incoming'}">
+      <div style="font-size:.65rem;color:var(--text3);margin-bottom:3px">\${isMe?'🤖 البوت':'👤 '+m.senderID} · \${t}</div>
+      <div style="font-size:.82rem;color:var(--text2);word-break:break-word">\${escHtmlJS(m.body)}</div>
+    </div>\`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+function clearFeed(){
+  document.getElementById('feedBox').innerHTML='';
+  document.getElementById('feedEmpty').style.display='';
+}
+
+async function sendMsg(){
+  const threadID = _selID || document.getElementById('manualTID').value.trim();
+  const message  = document.getElementById('msgText').value.trim();
+  if(!threadID) return showToast('❌ اختر غرفة أو أدخل معرّفاً يدوياً','error');
+  if(!message)  return showToast('❌ اكتب رسالة أولاً','error');
+  const btn = document.getElementById('sendBtn');
+  btn.disabled=true; btn.textContent='⏳ جاري الإرسال...';
+  const r = await api('/api/send', {threadID, message});
+  btn.disabled=false; btn.textContent='📤 إرسال الآن';
+  if(r.ok){
+    showToast('✅ تم الإرسال بنجاح!','success');
+    // add to feed locally
+    const box = document.getElementById('feedBox');
+    document.getElementById('feedEmpty').style.display='none';
+    const t = new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+    box.insertAdjacentHTML('beforeend', \`<div class="feed-bubble outgoing"><div style="font-size:.65rem;color:var(--text3);margin-bottom:3px">🤖 أرسلت · \${t}</div><div style="font-size:.82rem;color:var(--text2)">\${escHtmlJS(message)}</div></div>\`);
+    box.scrollTop = box.scrollHeight;
+  } else { showToast('❌ '+r.error,'error'); }
+}
+
+async function sendAll(){
+  const message = document.getElementById('msgText').value.trim();
+  if(!message) return showToast('❌ اكتب رسالة أولاً','error');
+  if(!_groups.length) return showToast('❌ لا توجد غرف','error');
+  if(!confirm('⚠️ سيتم إرسال الرسالة لجميع '+_groups.length+' غرفة. تأكيد؟')) return;
+  document.getElementById('broadcastCard').style.display='';
+  const res = document.getElementById('broadcastResults');
+  res.innerHTML = '⏳ جاري الإرسال...';
+  let ok=0, fail=0;
+  for(const g of _groups){
+    const r = await api('/api/send',{threadID:g.threadID,message});
+    if(r.ok) ok++; else fail++;
+    res.innerHTML = \`✅ \${ok} نجح &nbsp;|&nbsp; ❌ \${fail} فشل &nbsp;|&nbsp; ⏳ باقي \${_groups.length-ok-fail}\`;
+    await new Promise(r=>setTimeout(r,800));
+  }
+  res.innerHTML += '<br><strong style="color:var(--green)">✅ اكتمل الإرسال</strong>';
+  showToast(\`✅ أُرسلت لـ \${ok} غرفة\`,'success');
+}
+
+// Load on mount
+loadGroups();
+setInterval(loadGroups, 30000);
 </script>`;
   res.send(layout("إرسال رسالة", body, "send"));
+});
+
+// ─── GROUPS PAGE ──────────────────────────────────────────────────────────────
+app.get("/groups", auth, (req, res) => {
+  const threads  = global.db?.allThreadData || [];
+  const total    = threads.length;
+  const groups   = threads.filter(t => t.threadInfo?.isGroup !== false).length;
+  const directs  = total - groups;
+
+  const body = `
+<style>
+.gcard{background:var(--bg2);border:1.5px solid var(--border);border-radius:16px;padding:16px;transition:all .22s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+.gcard:hover{border-color:rgba(99,102,241,.45);transform:translateY(-2px);box-shadow:var(--shadow)}
+.gcard-avatar{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0}
+.gcard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.gcard-stat{display:flex;flex-direction:column;align-items:center;background:var(--bg3);border-radius:8px;padding:7px 10px;min-width:60px}
+.gcard-stat-v{font-size:1rem;font-weight:800;color:var(--text)}
+.gcard-stat-l{font-size:.62rem;color:var(--text3);white-space:nowrap}
+</style>
+
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="page-title">👥 الغروبات</div>
+    <div class="page-sub">إدارة جميع الغرف التي يشارك فيها البوت</div>
+  </div>
+  <div class="btn-row" style="margin:0">
+    <button class="btn btn-outline btn-sm" onclick="loadGroups()">🔄 تحديث</button>
+    <button class="btn btn-outline btn-sm" onclick="toggleView()">⊞ تغيير العرض</button>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px">
+  <div class="stat stat-blue" style="padding:16px">
+    <div class="stat-glow"></div>
+    <div class="stat-icon" style="font-size:1.4rem">💬</div>
+    <div class="stat-val" id="stTotal" style="font-size:1.6rem">${total}</div>
+    <div class="stat-lbl">إجمالي الغرف</div>
+  </div>
+  <div class="stat stat-green" style="padding:16px">
+    <div class="stat-glow"></div>
+    <div class="stat-icon" style="font-size:1.4rem">👥</div>
+    <div class="stat-val" id="stGroups" style="font-size:1.6rem">${groups}</div>
+    <div class="stat-lbl">مجموعات</div>
+  </div>
+  <div class="stat stat-purple" style="padding:16px">
+    <div class="stat-glow"></div>
+    <div class="stat-icon" style="font-size:1.4rem">👤</div>
+    <div class="stat-val" id="stDirect" style="font-size:1.6rem">${directs}</div>
+    <div class="stat-lbl">محادثات خاصة</div>
+  </div>
+  <div class="stat" style="padding:16px;background:var(--bg2);border:1px solid var(--border)">
+    <div class="stat-glow" style="background:#f59e0b"></div>
+    <div class="stat-icon" style="font-size:1.4rem">🔴</div>
+    <div class="stat-val" id="stLive" style="font-size:1.6rem">0</div>
+    <div class="stat-lbl">نشطة الآن</div>
+  </div>
+</div>
+
+<!-- Filters + Search -->
+<div class="card" style="padding:14px 16px;margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <input type="text" id="gSearch" class="form-control" placeholder="🔍 ابحث باسم الغرفة أو المعرّف..." oninput="filterCards(this.value)" style="margin:0;flex:1;min-width:180px"/>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" id="fAll" onclick="setFilter('all')" style="min-width:60px">الكل</button>
+      <button class="btn btn-outline btn-sm" id="fGroup" onclick="setFilter('group')">👥 مجموعات</button>
+      <button class="btn btn-outline btn-sm" id="fDirect" onclick="setFilter('direct')">👤 خاصة</button>
+      <button class="btn btn-outline btn-sm" id="fActive" onclick="setFilter('active')">🔴 نشطة</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cards Grid -->
+<div class="gcard-grid" id="cardGrid">
+  <div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--text3)">⏳ جاري التحميل...</div>
+</div>
+
+<!-- Send Modal -->
+<div id="sendModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:20px;width:100%;max-width:460px;box-shadow:var(--shadow-lg);overflow:hidden">
+    <div style="padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:800;font-size:1rem;color:var(--text)" id="modalTitle">📨 إرسال رسالة</div>
+      <button onclick="closeSendModal()" style="background:var(--bg4);border:1px solid var(--border);border-radius:8px;width:30px;height:30px;cursor:pointer;color:var(--text2);font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div style="padding:20px 22px">
+      <div class="form-group">
+        <label class="form-label" style="font-size:.8rem;color:var(--text3)" id="modalSub">إرسال إلى الغرفة</label>
+        <textarea id="modalMsg" class="form-control" rows="4" placeholder="اكتب رسالتك هنا..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="doModalSend()">📤 إرسال</button>
+        <button class="btn btn-outline" onclick="closeSendModal()">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _allG = [];
+let _filter = 'all';
+let _viewList = false;
+let _modalTID = '';
+const BGCOLS = ['linear-gradient(135deg,#6366f1,#8b5cf6)','linear-gradient(135deg,#10b981,#059669)','linear-gradient(135deg,#f59e0b,#d97706)','linear-gradient(135deg,#ef4444,#dc2626)','linear-gradient(135deg,#3b82f6,#2563eb)','linear-gradient(135deg,#ec4899,#db2777)','linear-gradient(135deg,#06b6d4,#0891b2)'];
+function gbg(id){ const h=String(id).split('').reduce((a,c)=>a+c.charCodeAt(0),0); return BGCOLS[h%BGCOLS.length]; }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadGroups(){
+  const r = await fetch('/api/groups');
+  const d = await r.json();
+  _allG = d.threads||[];
+  document.getElementById('stTotal').textContent  = _allG.length;
+  document.getElementById('stGroups').textContent = _allG.filter(g=>g.isGroup).length;
+  document.getElementById('stDirect').textContent = _allG.filter(g=>!g.isGroup).length;
+  document.getElementById('stLive').textContent   = _allG.filter(g=>g.msgCount>0).length;
+  applyFilter();
+}
+
+function setFilter(f){
+  _filter = f;
+  ['fAll','fGroup','fDirect','fActive'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.style.background=''; el.style.color=''; el.style.borderColor='';
+  });
+  const active = {all:'fAll',group:'fGroup',direct:'fDirect',active:'fActive'}[f];
+  const el = document.getElementById(active);
+  if(el){ el.style.background='rgba(99,102,241,.15)'; el.style.color='var(--accent2)'; el.style.borderColor='rgba(99,102,241,.4)'; }
+  applyFilter();
+}
+
+function applyFilter(){
+  const q = (document.getElementById('gSearch').value||'').toLowerCase();
+  let list = _allG;
+  if(_filter==='group')  list = list.filter(g=>g.isGroup);
+  if(_filter==='direct') list = list.filter(g=>!g.isGroup);
+  if(_filter==='active') list = list.filter(g=>g.msgCount>0);
+  if(q) list = list.filter(g=>g.name.toLowerCase().includes(q)||g.threadID.includes(q));
+  renderCards(list);
+}
+
+function filterCards(q){ applyFilter(); }
+
+function renderCards(list){
+  const grid = document.getElementById('cardGrid');
+  if(!list.length){
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--text3)"><div style="font-size:3rem;margin-bottom:12px">🔍</div>لا توجد غرف مطابقة</div>';
+    return;
+  }
+  grid.innerHTML = list.map(g=>{
+    const emoji = g.emoji||(g.isGroup?'👥':'👤');
+    const name  = esc(g.name);
+    const admins= g.adminIDs?.length?'<span class="badge badge-blue">👑 '+g.adminIDs.length+' مشرف</span>':'';
+    const live  = g.msgCount?'<span class="badge badge-green" style="background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)">🔴 '+g.msgCount+' رسالة</span>':'';
+    const type  = g.isGroup?'<span class="badge" style="background:rgba(99,102,241,.1);color:var(--accent2);border:1px solid rgba(99,102,241,.2);font-size:.6rem">مجموعة</span>':'<span class="badge" style="background:rgba(245,158,11,.1);color:var(--yellow);border:1px solid rgba(245,158,11,.2);font-size:.6rem">خاص</span>';
+    return \`<div class="gcard">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div class="gcard-avatar" style="background:\${gbg(g.threadID)}">\${emoji}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:.88rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${name}">\${name}</div>
+          <div style="font-size:.7rem;color:var(--text3);margin-top:2px;font-family:monospace">\${g.threadID}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        \${type}\${admins}\${live}
+        \${g.memberCount?'<span class="badge badge-blue">👤 '+g.memberCount+' عضو</span>':''}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSendModal('\${g.threadID}','\${esc(g.name)}')">📤 إرسال</button>
+        <button class="btn btn-outline btn-sm" onclick="copyTID('\${g.threadID}')">📋</button>
+        <a href="/send" class="btn btn-outline btn-sm" onclick="localStorage.setItem('wv3_send_tid','\${g.threadID}');return true">🔗</a>
+      </div>
+    </div>\`;
+  }).join('');
+}
+
+function toggleView(){
+  _viewList = !_viewList;
+  const g = document.getElementById('cardGrid');
+  g.style.gridTemplateColumns = _viewList ? '1fr' : 'repeat(auto-fill,minmax(280px,1fr))';
+}
+
+function copyTID(id){
+  navigator.clipboard.writeText(id).then(()=>showToast('📋 تم نسخ المعرّف','success')).catch(()=>showToast('❌ تعذّر النسخ','error'));
+}
+
+function openSendModal(tid, name){
+  _modalTID = tid;
+  document.getElementById('modalTitle').textContent = '📨 إرسال إلى: '+name;
+  document.getElementById('modalSub').textContent   = 'Thread ID: '+tid;
+  document.getElementById('modalMsg').value = '';
+  document.getElementById('sendModal').style.display='flex';
+  setTimeout(()=>document.getElementById('modalMsg').focus(),100);
+}
+
+function closeSendModal(){
+  document.getElementById('sendModal').style.display='none';
+}
+
+async function doModalSend(){
+  const msg = document.getElementById('modalMsg').value.trim();
+  if(!msg) return showToast('❌ اكتب رسالة أولاً','error');
+  const r = await api('/api/send',{threadID:_modalTID,message:msg});
+  r.ok ? (showToast('✅ تم الإرسال!','success'), closeSendModal()) : showToast('❌ '+r.error,'error');
+}
+
+document.getElementById('sendModal').addEventListener('click', e=>{
+  if(e.target===document.getElementById('sendModal')) closeSendModal();
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSendModal(); });
+
+setFilter('all');
+loadGroups();
+setInterval(loadGroups, 20000);
+</script>`;
+  res.send(layout("الغروبات", body, "groups"));
 });
 
 // ─── DEV HUB ──────────────────────────────────────────────────────────────────
