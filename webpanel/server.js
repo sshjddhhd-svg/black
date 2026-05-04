@@ -156,6 +156,7 @@ function layout(title, body, activeTab = "") {
     ["status",   "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6", "الرئيسية"],
     ["cookies",  "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", "الكوكيز"],
     ["config",   "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z", "الإعدادات"],
+    ["commands", "M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", "الأوامر"],
     ["accounts", "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", "الحسابات"],
     ["logs",     "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", "السجلات"],
     ["send",     "M12 19l9 2-9-18-9 18 9-2zm0 0v-8", "إرسال رسالة"],
@@ -528,9 +529,9 @@ code{background:var(--bg4);color:#93c5fd;padding:2px 7px;border-radius:5px;font-
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
     الرئيسية
   </a>
-  <a href="/logs" class="mob-nav-item ${activeTab==='logs'?'active':''}">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-    السجلات
+  <a href="/commands" class="mob-nav-item ${activeTab==='commands'?'active':''}">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    الأوامر
   </a>
   <a href="/config" class="mob-nav-item ${activeTab==='config'?'active':''}">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -851,75 +852,152 @@ app.post("/api/bot/control", auth, (req, res) => {
 // ─── COOKIES ──────────────────────────────────────────────────────────────────
 app.get("/cookies", auth, (req, res) => {
   let current = "";
+  let cookieInfo = { c_user: "—", user_valid: false, count: 0 };
   try {
     const raw = fs.readFileSync(ACCOUNT_FILE, "utf8").trim();
     const parsed = JSON.parse(raw);
     current = JSON.stringify(parsed, null, 2);
+    if (Array.isArray(parsed)) {
+      const cu = parsed.find(c => c.key === "c_user");
+      const xs = parsed.find(c => c.key === "xs");
+      cookieInfo = { c_user: cu?.value || "—", user_valid: !!(cu && xs), count: parsed.length };
+    }
   } catch (_) { current = ""; }
 
   const body = `
 <div class="page-header">
-  <div class="page-title">🍪 إدارة الكوكيز / AppState</div>
-  <div class="page-sub">ادارة كوكيز جلسة فيسبوك للبوت</div>
+  <div class="page-title">🍪 إدارة الكوكيز</div>
+  <div class="page-sub">كوكيز جلسة فيسبوك — تحديثها يُعيد اتصال البوت فوراً</div>
 </div>
 
+<!-- Current Status -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+  <div style="background:var(--bg2);border:1px solid ${cookieInfo.user_valid?"rgba(16,185,129,.4)":"rgba(239,68,68,.4)"};border-radius:12px;padding:16px;text-align:center">
+    <div style="font-size:1.6rem">${cookieInfo.user_valid ? "✅" : "❌"}</div>
+    <div style="font-size:.78rem;color:var(--text3);margin-top:4px">حالة الكوكيز</div>
+    <div style="font-size:.82rem;font-weight:700;color:${cookieInfo.user_valid?"var(--green)":"var(--red)"};margin-top:2px">${cookieInfo.user_valid?"صالحة":"غير صالحة"}</div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
+    <div style="font-size:1.6rem">👤</div>
+    <div style="font-size:.78rem;color:var(--text3);margin-top:4px">c_user</div>
+    <div style="font-size:.78rem;font-weight:700;color:var(--accent2);margin-top:2px;word-break:break-all">${htmlEscape(cookieInfo.c_user)}</div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
+    <div style="font-size:1.6rem">🔑</div>
+    <div style="font-size:.78rem;color:var(--text3);margin-top:4px">عدد الكوكيز</div>
+    <div style="font-size:1.4rem;font-weight:700;color:var(--text);margin-top:2px">${cookieInfo.count}</div>
+  </div>
+</div>
+
+<!-- Paste Area -->
 <div class="card">
   <div class="card-header">
-    <div class="card-title">📋 AppState الحالي</div>
-    <div>
-      <button class="btn btn-outline btn-sm" onclick="formatJson()">✨ تنسيق JSON</button>
+    <div class="card-title">📋 الصق كوكيز جديدة</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" onclick="formatJson()">✨ تنسيق</button>
+      <button class="btn btn-outline btn-sm" onclick="clearField()">🗑️</button>
     </div>
   </div>
-  <p style="color:var(--text3);font-size:.83rem;margin-bottom:14px">هذا هو كوكيز جلسة فيسبوك المستخدمة من قبل البوت. الحفظ يُعيد الاتصال تلقائياً بدون إعادة تشغيل.</p>
-  <textarea id="cookieText" class="form-control" rows="12" style="font-family:'Courier New',monospace;font-size:.75rem">${htmlEscape(current)}</textarea>
+  <div id="cookieValidHint" style="margin-bottom:10px;font-size:.82rem;font-weight:600;height:20px"></div>
+  <textarea id="cookieText" class="form-control" rows="10" placeholder='الصق هنا الـ appstate (JSON) — يقبل الصيغتين: مصفوفة كوكيز [ {...}, {...} ] أو كوكيز نصية' style="font-family:'Courier New',monospace;font-size:.74rem;border-color:var(--border);transition:border-color .3s" oninput="validateCookieInput(this)">${htmlEscape(current)}</textarea>
   <div class="btn-row">
-    <button class="btn btn-primary" onclick="saveCookies()">💾 حفظ وإعادة الاتصال تلقائياً</button>
-    <button class="btn btn-outline" onclick="clearField()">🗑️ مسح</button>
+    <button class="btn btn-primary" onclick="saveCookies()">💾 حفظ وإعادة الاتصال</button>
+    <button class="btn btn-outline" onclick="pasteFromClipboard()">📋 لصق من الحافظة</button>
   </div>
 </div>
 
+<!-- Upload File -->
 <div class="card">
-  <div class="card-header">
-    <div class="card-title">📁 رفع ملف account.txt</div>
+  <div class="card-header"><div class="card-title">📁 رفع ملف كوكيز</div></div>
+  <div style="border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .2s" id="dropZone"
+    ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+    ondragleave="this.style.borderColor='var(--border)'"
+    ondrop="handleDrop(event)">
+    <div style="font-size:2rem;margin-bottom:8px">📂</div>
+    <div style="font-size:.85rem;color:var(--text2)">اسحب وأفلت ملف <code>account.txt</code> أو <code>.json</code></div>
+    <div style="font-size:.78rem;color:var(--text3);margin-top:4px">أو</div>
+    <label style="cursor:pointer">
+      <input type="file" id="fileInput" accept=".txt,.json" style="display:none" onchange="uploadFile()"/>
+      <span class="btn btn-outline btn-sm" style="margin-top:8px;display:inline-flex">📂 اختر ملفاً</span>
+    </label>
   </div>
-  <p style="color:var(--text3);font-size:.83rem;margin-bottom:14px">ارفع ملف <code>account.txt</code> مباشرة. سيُعاد الاتصال تلقائياً.</p>
-  <input type="file" id="fileInput" accept=".txt,.json" class="form-control" style="cursor:pointer"/>
-  <div class="btn-row">
-    <button class="btn btn-success" onclick="uploadFile()">⬆️ رفع الملف</button>
-  </div>
+  <div id="uploadHint" style="margin-top:8px;font-size:.82rem;height:20px"></div>
 </div>
 
 <script>
+function validateCookieInput(el){
+  const hint=document.getElementById('cookieValidHint');
+  const val=el.value.trim();
+  if(!val){hint.innerHTML='';el.style.borderColor='var(--border)';return}
+  try{
+    const p=JSON.parse(val);
+    const isArr=Array.isArray(p);
+    const hasCuser=isArr&&p.find(c=>c.key==='c_user');
+    const hasXs=isArr&&p.find(c=>c.key==='xs');
+    if(isArr&&hasCuser&&hasXs){
+      hint.innerHTML='<span style="color:var(--green)">✅ كوكيز صالحة — c_user: '+hasCuser.value+'</span>';
+      el.style.borderColor='rgba(16,185,129,.6)';
+    } else if(isArr){
+      hint.innerHTML='<span style="color:var(--yellow)">⚠️ مصفوفة JSON ولكن قد تكون ناقصة (لا c_user أو xs)</span>';
+      el.style.borderColor='rgba(245,158,11,.6)';
+    } else {
+      hint.innerHTML='<span style="color:var(--yellow)">⚠️ JSON صحيح لكن ليس مصفوفة كوكيز</span>';
+      el.style.borderColor='rgba(245,158,11,.6)';
+    }
+  } catch(e){
+    hint.innerHTML='<span style="color:var(--red)">❌ ليس JSON صحيحاً: '+e.message.substring(0,50)+'</span>';
+    el.style.borderColor='rgba(239,68,68,.6)';
+  }
+}
 async function saveCookies(){
   const val = document.getElementById('cookieText').value.trim();
   if(!val) return showToast('❌ الحقل فارغ', 'error');
   try{ JSON.parse(val) } catch(e){ showToast('❌ JSON غير صحيح: '+e.message,'error'); return }
   const r = await api('/api/cookies',{appstate:val});
   if(r.ok){
-    showToast('✅ تم الحفظ! جارٍ إعادة الاتصال تلقائياً...','success');
-    if(r.reconnecting) setTimeout(()=>location.reload(),4000);
+    showToast('✅ تم الحفظ! جارٍ إعادة الاتصال...','success');
+    if(r.reconnecting) setTimeout(()=>location.reload(),4500);
   } else { showToast('❌ '+r.error,'error'); }
 }
 function formatJson(){
   const el = document.getElementById('cookieText');
-  try{ el.value = JSON.stringify(JSON.parse(el.value), null, 2); showToast('✅ تم التنسيق','success') }
+  try{ el.value = JSON.stringify(JSON.parse(el.value), null, 2); validateCookieInput(el); showToast('✅ تم التنسيق','success') }
   catch(e){ showToast('❌ JSON غير صحيح','error') }
 }
-function clearField(){ document.getElementById('cookieText').value=''; }
+function clearField(){ const el=document.getElementById('cookieText'); el.value=''; el.style.borderColor='var(--border)'; document.getElementById('cookieValidHint').innerHTML=''; }
+async function pasteFromClipboard(){
+  try{
+    const txt=await navigator.clipboard.readText();
+    const el=document.getElementById('cookieText');
+    el.value=txt; validateCookieInput(el); showToast('✅ تم اللصق','success');
+  }catch(e){ showToast('❌ لا يمكن الوصول للحافظة — الصق يدوياً','error'); }
+}
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('dropZone').style.borderColor='var(--border)';
+  const file=e.dataTransfer.files[0];
+  if(!file) return;
+  readFile(file);
+}
 function uploadFile(){
-  const f = document.getElementById('fileInput').files[0];
-  if(!f) return showToast('❌ لم يتم اختيار ملف','error');
-  const r = new FileReader();
-  r.onload = async function(e){
-    const txt = e.target.result;
-    try{ JSON.parse(txt) } catch(ex){ showToast('❌ الملف ليس JSON صحيحاً','error'); return }
-    const res = await api('/api/cookies',{appstate:txt});
-    if(res.ok){
-      showToast('✅ تم الرفع! جارٍ إعادة الاتصال تلقائياً...','success');
-      if(res.reconnecting) setTimeout(()=>location.reload(),4000);
-    } else { showToast('❌ '+res.error,'error'); }
+  const f=document.getElementById('fileInput').files[0];
+  if(f) readFile(f);
+}
+function readFile(file){
+  const hint=document.getElementById('uploadHint');
+  hint.innerHTML='<span style="color:var(--text3)">⏳ جارٍ القراءة...</span>';
+  const r=new FileReader();
+  r.onload=async function(e){
+    const txt=e.target.result;
+    try{
+      JSON.parse(txt);
+      document.getElementById('cookieText').value=txt;
+      validateCookieInput(document.getElementById('cookieText'));
+      hint.innerHTML='<span style="color:var(--green)">✅ تم تحميل الملف — اضغط حفظ لتطبيقه</span>';
+      showToast('✅ تم تحميل الملف — اضغط حفظ','success');
+    }catch(ex){ hint.innerHTML='<span style="color:var(--red)">❌ الملف ليس JSON صحيحاً</span>'; showToast('❌ الملف ليس JSON','error'); }
   };
-  r.readAsText(f);
+  r.readAsText(file);
 }
 </script>`;
   res.send(layout("الكوكيز", body, "cookies"));
@@ -1151,103 +1229,173 @@ app.get("/accounts", auth, (req, res) => {
   const rotation = cfg.accountRotation || {};
   const accounts = rotation.accounts || [];
 
-  const rows = accounts.map((acc, i) => `
-<tr>
-  <td>
-    ${rotation.currentIndex === i
-      ? `<span class="badge badge-green">▶ نشط</span>`
-      : `<span class="badge badge-blue">#${i}</span>`}
-  </td>
-  <td style="color:var(--text2)">${htmlEscape(acc.label || `حساب ${i}`)}</td>
-  <td><input type="email" class="form-control" id="email_${i}" value="${htmlEscape(acc.email || "")}" placeholder="email@example.com"/></td>
-  <td><input type="password" class="form-control" id="pass_${i}" value="${htmlEscape(acc.password || "")}" placeholder="كلمة المرور"/></td>
-  <td><input type="text" class="form-control" id="tfa_${i}" value="${htmlEscape(acc["2FASecret"] || "")}" placeholder="2FA (اختياري)"/></td>
-  <td><button class="btn btn-primary btn-sm" onclick="saveAccount(${i})">💾</button></td>
-</tr>`).join("");
+  const accountCards = accounts.map((acc, i) => {
+    const isActive = rotation.currentIndex === i;
+    const isRestricted = (rotation.restrictedIndexes || []).includes(i);
+    return `
+<div style="background:var(--bg3);border:2px solid ${isActive?"rgba(16,185,129,.5)":isRestricted?"rgba(239,68,68,.3)":"var(--border)"};border-radius:12px;padding:16px;position:relative">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:32px;height:32px;border-radius:8px;background:${isActive?"linear-gradient(135deg,#10b981,#059669)":isRestricted?"linear-gradient(135deg,#ef4444,#dc2626)":"linear-gradient(135deg,#3b82f6,#6366f1)"};display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;color:#fff">${i}</div>
+      <div>
+        <input type="text" id="label_${i}" class="form-control" value="${htmlEscape(acc.label || `حساب ${i}`)}" style="font-weight:700;font-size:.88rem;padding:4px 8px;width:160px"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${isActive?'<span class="badge badge-green">▶ نشط حالياً</span>':""}
+      ${isRestricted?'<span class="badge badge-red">🚫 محظور</span>':""}
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px" class="acc-grid">
+    <div>
+      <label class="form-label" style="font-size:.75rem">📧 البريد الإلكتروني</label>
+      <input type="email" id="email_${i}" class="form-control" value="${htmlEscape(acc.email || "")}" placeholder="email@facebook.com" style="font-size:.83rem"/>
+    </div>
+    <div>
+      <label class="form-label" style="font-size:.75rem">🔑 كلمة المرور</label>
+      <div style="position:relative">
+        <input type="password" id="pass_${i}" class="form-control" value="${htmlEscape(acc.password || "")}" placeholder="••••••••" style="font-size:.83rem;padding-left:36px"/>
+        <button onclick="togglePassVis(${i})" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:.85rem">👁️</button>
+      </div>
+    </div>
+    <div>
+      <label class="form-label" style="font-size:.75rem">🔐 رمز 2FA (اختياري)</label>
+      <input type="text" id="tfa_${i}" class="form-control" value="${htmlEscape(acc["2FASecret"] || "")}" placeholder="JBSWY3DPEHPK3PXP" style="font-size:.83rem"/>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="saveAccount(${i})" style="flex:1">💾 حفظ</button>
+      ${!isActive?`<button class="btn btn-success btn-sm" onclick="switchAccount(${i})">▶ تفعيل</button>`:""}
+    </div>
+  </div>
+</div>`;
+  }).join("");
 
   const body = `
 <div class="page-header">
-  <div class="page-title">👤 إدارة الحسابات</div>
-  <div class="page-sub">تكوين حسابات فيسبوك الاحتياطية</div>
+  <div class="page-title">👤 نظام الحسابات</div>
+  <div class="page-sub">إدارة حسابات فيسبوك والتدوير التلقائي</div>
 </div>
 
+<!-- Status Bar -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+  <div style="background:var(--bg2);border:1px solid ${rotation.enable?"rgba(16,185,129,.4)":"rgba(239,68,68,.35)"};border-radius:12px;padding:14px;text-align:center">
+    <div style="font-size:1.5rem">${rotation.enable?"🔄":"⏸️"}</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-top:4px">التدوير التلقائي</div>
+    <div style="font-size:.82rem;font-weight:700;color:${rotation.enable?"var(--green)":"var(--red)"};">${rotation.enable?"مفعّل":"معطّل"}</div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+    <div style="font-size:1.5rem">👤</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-top:4px">الحساب النشط</div>
+    <div style="font-size:.82rem;font-weight:700;color:var(--accent2)">#${rotation.currentIndex??0} — ${htmlEscape(accounts[rotation.currentIndex??0]?.label||"—")}</div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+    <div style="font-size:1.5rem">🔢</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-top:4px">إجمالي الحسابات</div>
+    <div style="font-size:1.4rem;font-weight:700;color:var(--text)">${accounts.length}</div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+    <div style="font-size:1.5rem">⏱️</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-top:4px">فترة التبديل</div>
+    <div style="font-size:.82rem;font-weight:700;color:var(--text)">${rotation.rotationCooldownMinutes||3} دقيقة</div>
+  </div>
+</div>
+
+<!-- Controls -->
 <div class="card">
   <div class="card-header">
-    <div class="card-title">⚙️ حالة التدوير التلقائي</div>
-    <span class="badge ${rotation.enable ? "badge-green" : "badge-red"}">${rotation.enable ? "✅ مفعّل" : "❌ معطل"}</span>
-  </div>
-  <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--text2);margin-bottom:16px">
-    <span>الحساب الحالي: <strong style="color:var(--accent2)">#${rotation.currentIndex ?? 0} — ${htmlEscape(accounts[rotation.currentIndex ?? 0]?.label || "—")}</strong></span>
-    <span>المحظورة: <strong style="color:var(--yellow)">${(rotation.restrictedIndexes || []).join(", ") || "لا يوجد"}</strong></span>
-    <span>دورة التبديل: <strong style="color:var(--text)">${rotation.rotationCooldownMinutes || 3} دقيقة</strong></span>
+    <div class="card-title">⚙️ التحكم في التدوير</div>
+    <span class="badge ${rotation.enable?"badge-green":"badge-red"}">${rotation.enable?"✅ مفعّل":"❌ معطل"}</span>
   </div>
   <div class="btn-row">
     <button class="btn btn-success" onclick="toggleRotator(true)">✅ تفعيل التدوير</button>
-    <button class="btn btn-danger" onclick="toggleRotator(false)">❌ إيقاف التدوير</button>
-    <button class="btn btn-outline" onclick="clearRestricted()">🔓 إزالة القيود</button>
+    <button class="btn btn-danger" onclick="toggleRotator(false)">⏸️ إيقاف التدوير</button>
+    <button class="btn btn-outline" onclick="clearRestricted()">🔓 إزالة الحظر من الكل</button>
+    <button class="btn btn-outline" onclick="addNewAccount()">➕ إضافة حساب</button>
   </div>
+  ${(rotation.restrictedIndexes||[]).length?`
+  <div style="margin-top:12px;padding:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;font-size:.82rem;color:var(--red)">
+    🚫 حسابات محظورة: <strong>${(rotation.restrictedIndexes||[]).join(", ")}</strong>
+  </div>`:""}
 </div>
 
+<!-- Account Cards -->
 <div class="card">
   <div class="card-header">
-    <div class="card-title">📋 الحسابات</div>
+    <div class="card-title">📱 الحسابات المضافة</div>
+    <span class="badge badge-blue">${accounts.length} حساب</span>
   </div>
-  <p style="color:var(--text3);font-size:.82rem;margin-bottom:16px">أضف حسابات فيسبوك الاحتياطية. سيتم التبديل تلقائياً عند حظر الحساب الحالي.</p>
-  <div class="table-responsive" style="overflow-x:auto">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>#</th><th>التسمية</th><th>البريد الإلكتروني</th><th>كلمة المرور</th><th>2FA</th><th>حفظ</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>
+  ${accounts.length ? `
+  <div style="display:grid;gap:14px">${accountCards}</div>
+  ` : `
+  <div style="text-align:center;padding:30px;color:var(--text3)">
+    <div style="font-size:2.5rem;margin-bottom:10px">👤</div>
+    <div style="font-size:.88rem">لا توجد حسابات احتياطية — اضغط "إضافة حساب"</div>
+  </div>`}
 </div>
 
+<!-- Panel Password -->
 <div class="card">
-  <div class="card-header"><div class="card-title">🔑 تغيير كلمة مرور لوحة التحكم</div></div>
-  <div style="max-width:400px">
-    <div class="form-group">
+  <div class="card-header"><div class="card-title">🔑 كلمة مرور اللوحة</div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px" class="two-col-pw">
+    <div class="form-group" style="margin:0">
       <label class="form-label">كلمة المرور الجديدة</label>
-      <input type="password" id="newPanelPass" class="form-control" placeholder="أدخل كلمة مرور جديدة"/>
+      <input type="password" id="newPanelPass" class="form-control" placeholder="••••••••"/>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin:0">
       <label class="form-label">تأكيد كلمة المرور</label>
-      <input type="password" id="confirmPanelPass" class="form-control" placeholder="أعد إدخال كلمة المرور"/>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" onclick="changePanelPass()">🔒 تغيير كلمة المرور</button>
+      <input type="password" id="confirmPanelPass" class="form-control" placeholder="••••••••"/>
     </div>
   </div>
-  <p style="color:var(--text3);font-size:.78rem;margin-top:12px">⚠️ لتطبيق كلمة المرور الجديدة بشكل دائم، أضف متغير البيئة <code>PANEL_PASSWORD</code> في Railway.</p>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="changePanelPass()">🔒 تغيير كلمة المرور</button>
+  </div>
+  <p style="color:var(--text3);font-size:.77rem;margin-top:10px">⚠️ أضف <code>PANEL_PASSWORD</code> في Railway للتطبيق الدائم</p>
 </div>
 
+<style>
+@media(max-width:480px){
+  .acc-grid{grid-template-columns:1fr !important}
+  .two-col-pw{grid-template-columns:1fr !important}
+}
+</style>
 <script>
 async function saveAccount(i){
   const r = await api('/api/accounts/save', {
     index:i,
+    label: document.getElementById('label_'+i)?.value||'حساب '+i,
     email: document.getElementById('email_'+i).value,
     password: document.getElementById('pass_'+i).value,
     '2FASecret': document.getElementById('tfa_'+i).value
   });
   r.ok ? showToast('✅ تم حفظ الحساب #'+i,'success') : showToast('❌ '+r.error,'error');
 }
+async function switchAccount(i){
+  const r = await api('/api/accounts/switch',{index:i});
+  r.ok ? (showToast('✅ تم التبديل للحساب #'+i,'success'), setTimeout(()=>location.reload(),1400)) : showToast('❌ '+(r.error||'فشل'),'error');
+}
+async function addNewAccount(){
+  const r = await api('/api/accounts/add',{});
+  r.ok ? (showToast('✅ تم إضافة حساب جديد','success'), setTimeout(()=>location.reload(),1200)) : showToast('❌ '+(r.error||'فشل'),'error');
+}
+function togglePassVis(i){
+  const el=document.getElementById('pass_'+i);
+  el.type=el.type==='password'?'text':'password';
+}
 async function toggleRotator(enable){
   const r = await api('/api/accounts/toggle',{enable});
-  r.ok ? (showToast(enable?'✅ تم تفعيل التدوير':'❌ تم إيقاف التدوير', enable?'success':'error'), setTimeout(()=>location.reload(),1200)) : showToast('❌ '+r.error,'error');
+  r.ok ? (showToast(enable?'✅ تم تفعيل التدوير':'⏸️ تم إيقاف التدوير', enable?'success':'info'), setTimeout(()=>location.reload(),1200)) : showToast('❌ '+r.error,'error');
 }
 async function clearRestricted(){
   const r = await api('/api/accounts/clearRestricted',{});
-  r.ok ? (showToast('✅ تم إزالة القيود','success'), setTimeout(()=>location.reload(),1200)) : showToast('❌ '+r.error,'error');
+  r.ok ? (showToast('✅ تم إزالة القيود عن الكل','success'), setTimeout(()=>location.reload(),1200)) : showToast('❌ '+r.error,'error');
 }
 function changePanelPass(){
   const p1 = document.getElementById('newPanelPass').value;
   const p2 = document.getElementById('confirmPanelPass').value;
   if(!p1) return showToast('❌ أدخل كلمة مرور','error');
   if(p1 !== p2) return showToast('❌ كلمتا المرور لا تتطابقان','error');
-  if(p1.length < 6) return showToast('❌ كلمة المرور قصيرة جداً (6 أحرف على الأقل)','error');
-  showToast('⚠️ أضف PANEL_PASSWORD='+p1+' في Railway للتطبيق الدائم','info');
+  if(p1.length < 6) return showToast('❌ كلمة المرور قصيرة (6 أحرف على الأقل)','error');
+  showToast('⚠️ أضف PANEL_PASSWORD='+p1+' في متغيرات Railway','info');
 }
 </script>`;
   res.send(layout("الحسابات", body, "accounts"));
@@ -1288,6 +1436,275 @@ app.post("/api/accounts/clearRestricted", auth, (req, res) => {
       global.GoatBot.config.accountRotation.restrictedIndexes = [];
     res.json({ ok: true });
   } catch (e) { res.json({ error: e.message }); }
+});
+
+app.post("/api/accounts/add", auth, (req, res) => {
+  try {
+    const cfg = readConfig();
+    if (!cfg.accountRotation) cfg.accountRotation = { accounts: [], enable: false };
+    const count = cfg.accountRotation.accounts.length;
+    cfg.accountRotation.accounts.push({ label: `حساب ${count}`, email: "", password: "", "2FASecret": "" });
+    saveConfig(cfg);
+    res.json({ ok: true });
+  } catch (e) { res.json({ error: e.message }); }
+});
+
+app.post("/api/accounts/switch", auth, (req, res) => {
+  try {
+    const idx = parseInt(req.body.index);
+    const cfg = readConfig();
+    if (!cfg.accountRotation) return res.json({ error: "لا يوجد إعداد تدوير" });
+    if (isNaN(idx) || idx < 0 || idx >= (cfg.accountRotation.accounts || []).length)
+      return res.json({ error: "رقم الحساب غير صحيح" });
+    cfg.accountRotation.currentIndex = idx;
+    saveConfig(cfg);
+    if (global.GoatBot?.config?.accountRotation)
+      global.GoatBot.config.accountRotation.currentIndex = idx;
+    res.json({ ok: true });
+  } catch (e) { res.json({ error: e.message }); }
+});
+
+// ─── COMMANDS PAGE ──────────────────────────────────────────────────────────────
+function parseCommandConfigs() {
+  const cmdsDir = path.join(ROOT, "scripts", "cmds");
+  const results = [];
+  try {
+    const files = fs.readdirSync(cmdsDir).filter(f => f.endsWith(".js"));
+    for (const f of files) {
+      try {
+        const code = fs.readFileSync(path.join(cmdsDir, f), "utf8");
+        const nameM  = code.match(/name\s*:\s*["'`]([^"'`]+)["'`]/);
+        const roleM  = code.match(/role\s*:\s*(\d)/);
+        const cdM    = code.match(/countDown\s*:\s*(\d+)/);
+        const catM   = code.match(/category\s*:\s*["'`]([^"'`]+)["'`]/);
+        const aliasM = code.match(/aliases\s*:\s*\[([^\]]*)\]/);
+        const descM  = code.match(/description\s*[\s\S]{0,5}?en\s*:\s*["'`]([^"'`]{0,120})/);
+        if (nameM) results.push({
+          file: f,
+          name: nameM[1],
+          role: roleM ? parseInt(roleM[1]) : 0,
+          countDown: cdM ? parseInt(cdM[1]) : 5,
+          category: catM ? catM[1] : "عام",
+          aliases: aliasM ? aliasM[1].replace(/["'`\s]/g,"").split(",").filter(Boolean) : [],
+          desc: descM ? descM[1].substring(0,80) : ""
+        });
+      } catch(_) {}
+    }
+  } catch(_) {}
+  return results;
+}
+
+app.get("/api/commands", auth, (req, res) => {
+  res.json({ ok: true, commands: parseCommandConfigs() });
+});
+
+app.post("/api/commands/update", auth, (req, res) => {
+  try {
+    const { file, field, value } = req.body;
+    if (!file || !field) return res.json({ error: "file و field مطلوبان" });
+    const allowed = ["role","countDown","name","aliases"];
+    if (!allowed.includes(field)) return res.json({ error: "الحقل غير مسموح بتعديله: " + field });
+    const filePath = path.join(ROOT, "scripts", "cmds", path.basename(file));
+    if (!fs.existsSync(filePath)) return res.json({ error: "الملف غير موجود" });
+    let code = fs.readFileSync(filePath, "utf8");
+    if (field === "role") {
+      const roleVal = parseInt(value);
+      if (isNaN(roleVal) || roleVal < 0 || roleVal > 3) return res.json({ error: "role يجب أن يكون 0-3" });
+      code = code.replace(/(\brole\s*:\s*)(\d)/, `$1${roleVal}`);
+    } else if (field === "countDown") {
+      const cdVal = parseInt(value);
+      if (isNaN(cdVal) || cdVal < 0) return res.json({ error: "countDown يجب أن يكون رقماً موجباً" });
+      code = code.replace(/(\bcountDown\s*:\s*)(\d+)/, `$1${cdVal}`);
+    } else if (field === "name") {
+      const newName = String(value).replace(/[^a-zA-Z0-9_\-]/g,"");
+      if (!newName) return res.json({ error: "اسم غير صالح" });
+      code = code.replace(/(\bname\s*:\s*["'`])([^"'`]+)(["'`])/, `$1${newName}$3`);
+    }
+    fs.writeFileSync(filePath, code, "utf8");
+    // hot-reload if bot supports it
+    if (global.GoatBot?.commands) {
+      try {
+        delete require.cache[require.resolve(filePath)];
+        const mod = require(filePath);
+        const cfg = mod.config || mod.module?.exports?.config;
+        if (cfg?.name) {
+          global.GoatBot.commands.delete(cfg.name);
+          global.GoatBot.commands.set(cfg.name, mod);
+        }
+      } catch(_) {}
+    }
+    res.json({ ok: true });
+  } catch (e) { res.json({ error: e.message }); }
+});
+
+app.get("/commands", auth, (req, res) => {
+  const cmds = parseCommandConfigs();
+  const cats = [...new Set(cmds.map(c => c.category))].sort();
+  const roleLabel = r => ["👤 عام","👮 مشرف المجموعة","🛡️ مشرف البوت","👑 أدمن البوت"][r] || String(r);
+  const roleColor = r => ["rgba(96,165,250,.12)","rgba(16,185,129,.12)","rgba(245,158,11,.12)","rgba(239,68,68,.12)"][r] || "var(--bg3)";
+  const roleBorder = r => ["rgba(96,165,250,.4)","rgba(16,185,129,.4)","rgba(245,158,11,.4)","rgba(239,68,68,.4)"][r] || "var(--border)";
+
+  const catOptions = cats.map(c => `<option value="${htmlEscape(c)}">${htmlEscape(c)}</option>`).join("");
+
+  const cards = cmds.map(cmd => `
+<div class="cmd-card" data-name="${htmlEscape(cmd.name)}" data-cat="${htmlEscape(cmd.category)}" data-role="${cmd.role}"
+  style="background:var(--bg3);border:1px solid ${roleBorder(cmd.role)};border-radius:12px;padding:14px;cursor:pointer;transition:all .2s"
+  onclick="openCmd('${htmlEscape(cmd.name)}','${htmlEscape(cmd.file)}',${cmd.role},${cmd.countDown},'${htmlEscape(cmd.aliases.join(","))}','${htmlEscape(cmd.desc)}')">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;flex-wrap:wrap">
+    <div style="font-weight:700;font-size:.9rem;color:var(--text)">${htmlEscape(cmd.name)}</div>
+    <span style="font-size:.68rem;padding:2px 8px;border-radius:8px;background:${roleColor(cmd.role)};color:${["#60a5fa","#6ee7b7","#fbbf24","#f87171"][cmd.role]||"var(--text2)"};border:1px solid ${roleBorder(cmd.role)};white-space:nowrap">${roleLabel(cmd.role)}</span>
+  </div>
+  ${cmd.aliases.length ? `<div style="font-size:.7rem;color:var(--text3);margin-bottom:6px">${cmd.aliases.map(a=>`<code style="margin-left:4px">${htmlEscape(a)}</code>`).join("")}</div>` : ""}
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+    <span style="font-size:.72rem;color:var(--text3);background:var(--bg4);padding:2px 7px;border-radius:6px">📂 ${htmlEscape(cmd.category)}</span>
+    <span style="font-size:.72rem;color:var(--text3)">⏱️ ${cmd.countDown}s</span>
+  </div>
+  ${cmd.desc ? `<div style="font-size:.72rem;color:var(--text3);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">${htmlEscape(cmd.desc)}</div>` : ""}
+</div>`).join("");
+
+  const body = `
+<div class="page-header">
+  <div class="page-title">⚡ إدارة الأوامر</div>
+  <div class="page-sub">${cmds.length} أمر — تعديل الصلاحيات، الـ cooldown، والإعدادات مباشرة</div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="padding:14px;margin-bottom:18px">
+  <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center" class="cmd-filter-row">
+    <input type="text" id="cmdSearch" class="form-control" placeholder="🔍 بحث عن أمر..." oninput="filterCommands()" style="font-size:.85rem"/>
+    <select id="catFilter" class="form-control" onchange="filterCommands()" style="font-size:.83rem;width:auto">
+      <option value="">📂 كل التصنيفات</option>
+      ${catOptions}
+    </select>
+    <select id="roleFilter" class="form-control" onchange="filterCommands()" style="font-size:.83rem;width:auto">
+      <option value="">🔑 كل الصلاحيات</option>
+      <option value="0">👤 عام</option>
+      <option value="1">👮 مشرف المجموعة</option>
+      <option value="2">🛡️ مشرف البوت</option>
+      <option value="3">👑 أدمن البوت</option>
+    </select>
+  </div>
+  <div id="cmdCount" style="font-size:.78rem;color:var(--text3);margin-top:8px">يعرض ${cmds.length} أمر</div>
+</div>
+
+<!-- Grid -->
+<div id="cmdGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+  ${cards}
+</div>
+
+<!-- Edit Modal -->
+<div id="cmdModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-weight:800;font-size:1rem;color:var(--text)">⚙️ تعديل الأمر: <span id="modalCmdName" style="color:var(--accent2)"></span></div>
+      <button onclick="closeModal()" style="background:var(--bg4);border:none;border-radius:8px;color:var(--text2);cursor:pointer;width:32px;height:32px;font-size:1.1rem;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <input type="hidden" id="modalFile"/>
+    <div style="display:grid;gap:14px">
+      <div>
+        <label class="form-label">🔑 مستوى الصلاحية</label>
+        <select id="modalRole" class="form-control">
+          <option value="0">0 — 👤 عام (الجميع)</option>
+          <option value="1">1 — 👮 مشرف المجموعة فقط</option>
+          <option value="2">2 — 🛡️ مشرف البوت فقط</option>
+          <option value="3">3 — 👑 أدمن البوت فقط</option>
+        </select>
+        <div style="font-size:.75rem;color:var(--text3);margin-top:4px">تغيير الصلاحية يطبّق على ملف الأمر مباشرة</div>
+      </div>
+      <div>
+        <label class="form-label">⏱️ وقت الانتظار بين الاستخدامات (ثانية)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="range" id="modalCdRange" min="0" max="120" step="1" oninput="document.getElementById('modalCd').value=this.value" style="flex:1;accent-color:var(--accent)"/>
+          <input type="number" id="modalCd" class="form-control" min="0" max="3600" style="width:80px;text-align:center" oninput="document.getElementById('modalCdRange').value=Math.min(120,this.value)"/>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">📝 اسم الأمر</label>
+        <input type="text" id="modalName" class="form-control" placeholder="اسم الأمر (بدون مسافات أو رموز)"/>
+      </div>
+      <div id="modalAliases" style="font-size:.78rem;color:var(--text3)"></div>
+      <div id="modalDesc" style="font-size:.78rem;color:var(--text3);font-style:italic"></div>
+    </div>
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn btn-primary" onclick="saveCmd()" style="flex:1">💾 حفظ التعديلات</button>
+      <button class="btn btn-outline" onclick="closeModal()">إلغاء</button>
+    </div>
+    <div id="modalStatus" style="margin-top:10px;font-size:.82rem;font-weight:600;min-height:20px"></div>
+  </div>
+</div>
+
+<style>
+.cmd-card:hover{border-color:var(--accent)!important;transform:translateY(-2px);box-shadow:0 4px 16px rgba(59,130,246,.15)}
+@media(max-width:480px){
+  .cmd-filter-row{grid-template-columns:1fr!important}
+  #cmdGrid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:360px){
+  #cmdGrid{grid-template-columns:1fr}
+}
+</style>
+<script>
+function filterCommands(){
+  const q=document.getElementById('cmdSearch').value.toLowerCase();
+  const cat=document.getElementById('catFilter').value;
+  const role=document.getElementById('roleFilter').value;
+  const cards=document.querySelectorAll('.cmd-card');
+  let vis=0;
+  cards.forEach(c=>{
+    const name=c.dataset.name.toLowerCase();
+    const ccat=c.dataset.cat;
+    const crole=c.dataset.role;
+    const show=(!q||name.includes(q))&&(!cat||ccat===cat)&&(!role||crole===role);
+    c.style.display=show?'':'none';
+    if(show)vis++;
+  });
+  document.getElementById('cmdCount').textContent='يعرض '+vis+' أمر';
+}
+function openCmd(name,file,role,cd,aliases,desc){
+  document.getElementById('modalCmdName').textContent=name;
+  document.getElementById('modalFile').value=file;
+  document.getElementById('modalRole').value=role;
+  document.getElementById('modalCd').value=cd;
+  document.getElementById('modalCdRange').value=Math.min(120,cd);
+  document.getElementById('modalName').value=name;
+  document.getElementById('modalAliases').innerHTML=aliases?'📎 أسماء مختصرة: <code>'+aliases.replace(/,/g,'</code>, <code>')+'</code>':'';
+  document.getElementById('modalDesc').textContent=desc?'📄 '+desc:'';
+  document.getElementById('modalStatus').innerHTML='';
+  document.getElementById('cmdModal').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function closeModal(){
+  document.getElementById('cmdModal').style.display='none';
+  document.body.style.overflow='';
+}
+async function saveCmd(){
+  const file=document.getElementById('modalFile').value;
+  const role=document.getElementById('modalRole').value;
+  const cd=document.getElementById('modalCd').value;
+  const name=document.getElementById('modalName').value.trim();
+  const st=document.getElementById('modalStatus');
+  st.innerHTML='<span style="color:var(--text3)">⏳ جارٍ الحفظ...</span>';
+  const updates=[[file,'role',role],[file,'countDown',cd]];
+  if(name&&name!==document.getElementById('modalCmdName').textContent) updates.push([file,'name',name]);
+  let ok=true;
+  for(const[f,field,val] of updates){
+    const r=await api('/api/commands/update',{file:f,field,value:val});
+    if(!r.ok){st.innerHTML='<span style="color:var(--red)">❌ '+r.error+'</span>';ok=false;break;}
+  }
+  if(ok){
+    st.innerHTML='<span style="color:var(--green)">✅ تم الحفظ بنجاح</span>';
+    showToast('✅ تم تحديث '+document.getElementById('modalCmdName').textContent,'success');
+    // update card display
+    setTimeout(()=>{
+      const card=document.querySelector('.cmd-card[data-name="'+document.getElementById('modalCmdName').textContent+'"]');
+      if(card){card.dataset.role=role;}
+    },200);
+  }
+}
+document.getElementById('cmdModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+</script>`;
+  res.send(layout("الأوامر", body, "commands"));
 });
 
 // ─── LOGS JSON API ─────────────────────────────────────────────────────────────
